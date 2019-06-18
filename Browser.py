@@ -19,40 +19,25 @@ class Browser:
         self.__TIMEOUT_MONGO = False
         self.LOCATION = LOCATION.lower()
 
-    def browse_images_local(self):
-        if self.LOCATION == 'cloud':
-            print('Please use the method "browse_images_local" for cloud usage.')
+    def browse_images(self):
         try:
-            local_images = ir.read_from_DB(self.DB, self.QR)
-            if local_images == 0:
+            images = ir.read_from_DB(self.DB, self.QR)
+            if images == 0:
                 print('The qr is not found locally.')
                 return False
-            elif local_images != 0 and len(local_images) < 3:
-                show_results(local_images)
+            elif images != 0 and len(images) < 3:
+                show_results(images)
                 return True
-            elif local_images != 0 and len(local_images) > 3:
-                rand_sample = random.sample(local_images, k=3)
+            elif images != 0 and len(images) > 3:
+                rand_sample = random.sample(images, k=3)
                 show_results(rand_sample)
                 return True
         except pymongo.errors.ServerSelectionTimeoutError:
             print('Local connection timeout error, server unavailable.')
-            self.__TIMEOUT_LOCAL = True
-    def browse_images_cloud(self):
-        try:
-            local_images = ir.read_from_DB(self.DB, self.QR)
-            if local_images == 0:
-                print('The qr is not found locally.')
-                return False
-            elif local_images != 0 and len(local_images) < 3:
-                show_results(local_images)
-                return True
-            elif local_images != 0 and len(local_images) > 3:
-                rand_sample = random.sample(local_images, k=3)
-                show_results(rand_sample)
-                return True
-        except pymongo.errors.ServerSelectionTimeoutError:
-            print('Local connection timeout error, server unavailable.')
-            self.__TIMEOUT_LOCAL = True
+            if self.LOCATION == 'cloud':
+                self.__TIMEOUT_LOCAL = True
+            if self.LOCATION == 'local':
+                self.__TIMEOUT_MONGO = True
 
 
 def show_results(images):
