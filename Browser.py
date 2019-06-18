@@ -15,29 +15,54 @@ class Browser:
     def __init__(self, QR, DB, LOCATION):
         self.QR = QR
         self.DB = DB
-        self.__TIMEOUT_LOCAL = False
-        self.__TIMEOUT_MONGO = False
-        self.LOCATION = LOCATION.lower()
+        self.__timeout_local = False
+        self.__timeout_mongo = False
+        self.LOCATION = LOCATION.upper()
+        self.found = False
 
     def browse_images(self):
         try:
             images = ir.read_from_DB(self.DB, self.QR)
             if images == 0:
                 print('The qr is not found locally.')
-                return False
+                self.found = False
+                if self.LOCATION == 'CLOUD':
+                    return {
+                        'TIMEOUT_'+self.LOCATION: self.__timeout_mongo,
+                        'found': self.found
+                    }
+                 elif self.LOCATION == 'LOCAL':
+                    return {
+                        'TIMEOUT_'+self.LOCATION: self.__timeout_local,
+                        'found': self.found
+                    }      
             elif images != 0 and len(images) < 3:
                 show_results(images)
-                return True
+                self.found = True
+                if self.LOCATION == 'CLOUD':
+                    return {
+                 
+                        'TIMEOUT_'+self.LOCATION: self.__timeout_mongo,
+                        'found': self.found
+                    }
+                 elif self.LOCATION == 'LOCAL':
+                    return {
+                        'TIMEOUT_'+self.LOCATION: self.__timeout_local,
+                        'found': self.found
+                    }
             elif images != 0 and len(images) > 3:
                 rand_sample = random.sample(images, k=3)
                 show_results(rand_sample)
-                return True
+                return {
+                        'TIMEOUT_'+self.LOCATION: self.__timeout_local,
+                        'found': self.found
+                    }
         except pymongo.errors.ServerSelectionTimeoutError:
             print('Local connection timeout error, server unavailable.')
-            if self.LOCATION == 'cloud':
-                self.__TIMEOUT_LOCAL = True
-            if self.LOCATION == 'local':
-                self.__TIMEOUT_MONGO = True
+            if self.LOCATION == 'CLOUD':
+                self.__timeout_local = True
+            if self.LOCATION == 'LOCAL':
+                self.__timeout_mongo = True
 
 
 def show_results(images):
