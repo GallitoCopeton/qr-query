@@ -1,4 +1,3 @@
-import os
 import random
 
 import cv2
@@ -8,6 +7,7 @@ import pymongo
 from geopy.geocoders import Nominatim
 
 import read_image as ir
+from Browser import Browser
 
 # Variables that should not change their values are gritten in UPPER CASE.
 
@@ -39,68 +39,27 @@ if URI2:
     except pymongo.errors.InvalidURI:
         print('Could not connect to Atlas, incorrect URI.')
         CLOUD = False
+        
 # Gather images. Priority on local storage.
 if LOCAL or CLOUD:
-    if LOCAL:
-        try:
-            l_images_from_DB = ir.read_from_DB(DB1, QR)
-            TIMEOUT_LOCAL = False
-            if len(l_images_from_DB) < 3:
-                fig = plt.figure(figsize=(15, 15))
-                fig.subplots_adjust(.1, 0)
-                for i, local_image in enumerate(l_images_from_DB):
-                    ax = fig.add_subplot(1, 3, i+1)
-                    plt.axis('off')
-                    ax.imshow(cv2.cvtColor(local_image, cv2.COLOR_BGR2RGB))
-                plt.show()
-            elif len(l_images_from_DB) > 3:
-                rand_sample = random.sample(l_images_from_DB, k=3)
-                fig = plt.figure(figsize=(15, 15))
-                fig.subplots_adjust(.1, 0)
-                for i, local_image in enumerate(rand_sample):
-                    ax = fig.add_subplot(1, 3, i+1)
-                    plt.axis('off')
-                    ax.imshow(cv2.cvtColor(local_image, cv2.COLOR_BGR2RGB))
-                plt.show()
-            elif l_images_from_DB == 0:
-                print('The qr is not found locally.')
-        except pymongo.errors.ServerSelectionTimeoutError:
-            print('Local connection timeout error, server unavailable.')
-            TIMEOUT_LOCAL = True
-    elif CLOUD:
-        try:
-            c_images_from_DB = ir.read_from_DB(DB2, QR)
-            TIMEOUT_MONGO = False
-            if c_images_from_DB != 0 and len(c_images_from_DB) < 3:
-                fig = plt.figure(figsize=(15, 15))
-                fig.subplots_adjust(.1, 0)
-                for i, local_image in enumerate(c_images_from_DB):
-                    ax = fig.add_subplot(1, 3, i+1)
-                    plt.axis('off')
-                    ax.imshow(cv2.cvtColor(local_image, cv2.COLOR_BGR2RGB))
-                plt.show()
-            elif c_images_from_DB != 0 and len(c_images_from_DB) > 3:
-                rand_sample = random.sample(c_images_from_DB, k=3)
-                fig = plt.figure(figsize=(15, 15))
-                fig.subplots_adjust(.1, 0)
-                for i, local_image in enumerate(rand_sample):
-                    ax = fig.add_subplot(1, 3, i+1)
-                    plt.axis('off')
-                    ax.imshow(cv2.cvtColor(local_image, cv2.COLOR_BGR2RGB))
-                plt.show()
-            elif c_images_from_DB == 0:
-                print('The qr code is not found in the remote database.')
-        except pymongo.errors.ServerSelectionTimeoutError:
-            print('Atlas connection timeout error, database unavailable.')
-            TIMEOUT_MONGO = True
-    else:
-        print('There are no images with that qr in neither databases')
+    local_browser = Browser(QR, DB1, 'local')
+    local_result = local_browser.browse_images()
+    if local_result['timeout']:
+        print('Server is unreachable, timeout error.')
+    if not local_result['found']:
+        print('No results were found locally, searching in the cloud now.')
+        cloud_browser = Browser(QR, DB2, 'cloud')
+        cloud_result = cloud_browser.browse_images()
+        if cloud_result['timeout']:
+            print('Mongo Atlas is unreachable, timeout error.')
+        if not cloud_result['found']:
+            print('No results were found in Atlas.')
 else:
     print('No connection was successful, no information could be gathered.')
 
 # Gather data from Mongo Atlas
 geolocator = Nominatim(user_agent="Query")
-if not TIMEOUT_MONGO:
+if not local_result['timeout']:
     if tests_mongo.count() > 0:
         result_dataframe = pd.DataFrame()
         for doc in tests_mongo:
@@ -121,7 +80,7 @@ if not TIMEOUT_MONGO:
                 temporary_dict[marker['name']] = marker['result']
             result_dataframe = result_dataframe.append(
                 temporary_dict, ignore_index=True)
-if not TIMEOUT_LOCAL:
+elif not TIMEOUT_MONGO:
     if tests_local.count() > 0:
         result_dataframe = pd.DataFrame()
         for doc in tests_local:

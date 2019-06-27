@@ -45,3 +45,12 @@ def make_image_list(cursor):
     for entry in cursor:
         images.append(readb64(entry['file']))
     return images
+
+def show_results(images):
+    fig = plt.figure(figsize=(15, 15))
+    fig.subplots_adjust(.1, 0)
+    for i, image in enumerate(images):
+        ax = fig.add_subplot(1, 3, i+1)
+        plt.axis('off')
+        ax.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+    plt.show()
