@@ -1,26 +1,31 @@
-
 import pandas as pd
 import pymongo
 from geopy.geocoders import Nominatim
+from IPython.display import display
+
+from Browser import Browser
 
 
-class DataBrowser:
-
-    def __init__(self, QR, DB, LOCATION):
-        self.QR = QR
-        self.DB = DB
-        self.__timeout = False
-        self.LOCATION = LOCATION.upper()
-        self.found = False
+class DataBrowser(Browser):
 
     def browse_data(self):
         try:
             qr_documents = self.DB.registerstotals.find({'qrCode': self.QR})
+            self.timeout = False
+            if qr_documents.count() == 0:
+                self.found = False
+                return {
+                    'timeout': self.timeout,
+                    'found': self.found,
+                    'location': self.LOCATION
+                }
+            else:
+                self.found = True
         except pymongo.errors.ServerSelectionTimeoutError:
-            self.__timeout = True
+            self.timeout = True
             self.found = False
             return {
-                'timeout': self.__timeout,
+                'timeout': self.timeout,
                 'found': self.found,
                 'location': self.LOCATION
             }
@@ -44,3 +49,9 @@ class DataBrowser:
             # Update dataframe
             result_dataframe = result_dataframe.append(
                 temporary_dict, ignore_index=True)
+            display(result_dataframe)
+            return {
+                'timeout': self.timeout,
+                'found': self.found,
+                'location': self.LOCATION
+            }

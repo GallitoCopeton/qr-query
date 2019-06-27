@@ -1,17 +1,12 @@
 import random
 
 import pymongo
+
+import Browser
 import read_image as ir
 
 
-class ImageBrowser:
-
-    def __init__(self, QR, DB, LOCATION):
-        self.QR = QR
-        self.DB = DB
-        self.__timeout = False
-        self.LOCATION = LOCATION.upper()
-        self.found = False
+class ImageBrowser(Browser.Browser):
 
     def browse_images(self):
         try:
@@ -19,7 +14,7 @@ class ImageBrowser:
             if images == 0:
                 self.found = False
                 return {
-                    'timeout': self.__timeout,
+                    'timeout': self.timeout,
                     'found': self.found,
                     'location': self.LOCATION
                 }
@@ -27,7 +22,7 @@ class ImageBrowser:
                 ir.show_results(images)
                 self.found = True
                 return {
-                    'timeout': self.__timeout,
+                    'timeout': self.timeout,
                     'found': self.found,
                     'location': self.LOCATION
                 }
@@ -36,15 +31,15 @@ class ImageBrowser:
                 ir.show_results(rand_sample)
                 self.found = True
                 return {
-                    'timeout': self.__timeout,
+                    'timeout': self.timeout,
                     'found': self.found,
                     'location': self.LOCATION
                 }
         except pymongo.errors.ServerSelectionTimeoutError:
-            self.__timeout = True
+            self.timeout = True
             self.found = False
             return {
-                'timeout': self.__timeout,
+                'timeout': self.timeout,
                 'found': self.found,
                 'location': self.LOCATION
             }
