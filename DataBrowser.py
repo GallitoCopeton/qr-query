@@ -30,8 +30,10 @@ class DataBrowser(Browser):
                 'location': self.LOCATION
             }
         geolocator = Nominatim(user_agent='Query')
-        result_dataframe = pd.DataFrame()
+        list_dicts = []
+        default_header = ['No. Imagen', 'Validez', 'Fecha + 5hrs', 'Ciudad']
         for document in qr_documents:
+            temporary_dict = {}
             # Location extraction
             latitude = str(document['location'][0]['latitude'])
             longitude = str(document['location'][0]['longitude'])
@@ -42,16 +44,22 @@ class DataBrowser(Browser):
                 'Ciudad': location.raw['address']['city'],
                 'Validez': document['control'],
                 'No. Imagen': document['count'],
-                'Fecha + 5hrs': str(document['createdAt'])
+                'Fecha + 5hrs': str(document['createdAt'])[0:-10]
             }
+            names_proteins = []
             for marker in document['marker']:
+                names_proteins.append(marker['name'])
+                header = default_header + names_proteins
                 temporary_dict[marker['name']] = marker['result']
-            # Update dataframe
-            result_dataframe = result_dataframe.append(
-                temporary_dict, ignore_index=True)
-            display(result_dataframe)
-            return {
-                'timeout': self.timeout,
-                'found': self.found,
-                'location': self.LOCATION
-            }
+            list_dicts.append(temporary_dict)
+        # Update dataframe
+        result_dataframe = pd.DataFrame.from_dict(list_dicts)
+        result_dataframe = result_dataframe[header]
+        result_dataframe = result_dataframe.sort_values(
+            by=['No. Imagen'], ascending=True)
+        display(result_dataframe)
+        return {
+            'timeout': self.timeout,
+            'found': self.found,
+            'location': self.LOCATION
+        }
