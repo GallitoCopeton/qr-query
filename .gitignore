@@ -1,3 +1,9 @@
+// Misc folders
 .vscode/
 __pycache__/
 .ipynb_checkpoints/
+// Misc files
+*.pyc
+*.rar
+*.png
+*.cpython-37.pyc
