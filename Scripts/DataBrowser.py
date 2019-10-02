@@ -12,7 +12,8 @@ class DataBrowser(Browser):
 
     def browseData(self):
         try:
-            qr_documents = self.DB.registerstotals.find({'qrCode': self.QR})
+            qr_documents = self.DB.registerstotals.find(
+                {'qrCode': self.QR}, no_cursor_timeout=True).limit(8)
             self.timeout = False
             if qr_documents.count() == 0:
                 self.found = False
@@ -76,9 +77,7 @@ class DataBrowser(Browser):
         # Update dataframe
         result_dataframe = pd.DataFrame.from_dict(list_dicts)
         result_dataframe = result_dataframe[header]
-        result_dataframe = result_dataframe.sort_values(
-            by=['Fecha + 5hrs'], ascending=True)
-        display(result_dataframe.head())
+        # display(result_dataframe.head())
         return {
             'timeout': self.timeout,
             'found': self.found,

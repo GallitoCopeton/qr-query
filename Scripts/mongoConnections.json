@@ -1,0 +1,18 @@
+{
+	"mongoConnections": {
+		"local": {
+			"URIS": [
+				{
+					"URI": "mongodb://findOnlyReadUser:RojutuNHqy@idenmon.zapto.org:888/?authSource=prodLaboratorio"
+				}
+			]
+		},
+		"cloud": {
+			"URIS": [
+				{
+					"URI": "mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?authSource=datamap&retryWrites=true"
+				}
+			]
+		}
+	}
+}

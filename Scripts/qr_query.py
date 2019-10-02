@@ -1,3 +1,4 @@
+
 import re
 
 import cv2
@@ -21,21 +22,25 @@ URI1 = 'mongodb://findOnlyReadUser:RojutuNHqy@idenmon.zapto.org:888/?authSource=
 URI2 = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
 
 
-def getImages(QR_code, amount):
+def getImages(QR_code):
     DB1 = localMongoConnection(URI1)
     DB2 = cloudMongoConnection(URI2)
     localImageBrowser = ImageBrowser(QR_code, DB1, 'local')
     localImageResult = localImageBrowser.browseImages()
     if localImageResult['timeout']:
-        print('Server is unreachable, timeout error.')
+        pass
+        #print('Server is unreachable, timeout error.')
     if not localImageResult['found']:
-        print('No images were found locally, searching in the cloud now.')
+        pass
+        #print('No images were found locally, searching in the cloud now.')
     cloudImageBrowser = ImageBrowser(QR_code, DB2, 'cloud')
     cloudImageResult = cloudImageBrowser.browseImages()
     if cloudImageResult['timeout']:
-        print('Mongo Atlas is unreachable, timeout error.')
+        pass
+        #print('Mongo Atlas is unreachable, timeout error.')
     if not cloudImageResult['found']:
-        print('No images were found in Atlas.')
+        pass
+        #print('No images were found in Atlas.')
     images = []
     for image in localImageResult['images']:
         images.append(image)
@@ -50,15 +55,19 @@ def getData(QR_code):
     localDataBrowser = DataBrowser(QR_code, DB1, 'local')
     localDataResult = localDataBrowser.browseData()
     if localDataResult['timeout']:
-        print('Server is unreachable, timeout error')
+        pass
+        #print('Server is unreachable, timeout error')
     if not localDataResult['found']:
-        print('No data was found locally, searching in the cloud now.')
+        pass
+        #print('No data was found locally, searching in the cloud now.')
     cloudDataBrowser = DataBrowser(QR_code, DB2, 'cloud')
     cloudDataResult = cloudDataBrowser.browseData()
     if cloudDataResult['timeout']:
-        print('Mongo Atlas is unreachable, timeout error.')
+        pass
+        #print('Mongo Atlas is unreachable, timeout error.')
     if not cloudDataResult['found']:
-        print('No data was found in Atlas.')
+        pass
+        #print('No data was found in Atlas.')
     try:
         return localDataResult['data'].append(localDataResult['data'], ignore_index=True)
     except:
@@ -73,10 +82,8 @@ def localMongoConnection(URI):
         try:
             CLIENT1 = pymongo.MongoClient(URI)
             DB1 = CLIENT1.prodLaboratorio
-            print('Connection to local Mongo successful.')
             return DB1
         except pymongo.errors.InvalidURI:
-            print('Could not connect to local Mongo, incorrect URI.')
             return None
     else:
         print('No URI to connect to')
@@ -88,10 +95,8 @@ def cloudMongoConnection(URI):
         try:
             CLIENT2 = pymongo.MongoClient(URI)
             DB2 = CLIENT2.datamap
-            print('Connection to Atlas successful.')
             return DB2
         except pymongo.errors.InvalidURI:
-            print('Could not connect to Atlas, incorrect URI.')
             return None
     else:
         print('No URI to connect to')
@@ -120,11 +125,33 @@ def getQrSquare(path):
 
 def isValidQr(qrCode):
     regexQr = r'\d{15}'
-    return re.search(regexQr, qrCode)
+    if re.search(regexQr, qrCode):
+        return True
+    else:
+        return False
+
+
+def isNone(variable):
+    if variable is None:
+        return True
+    else:
+        return False
 
 
 def splitInputQrs(inputQrs):
     if len(inputQrs) == 0:
         return None
-    regexSplit = r' |,|, '
+    regexSplit = r'\s?[, ]\s?'
     return re.split(regexSplit, inputQrs)
+
+
+def askForAmount(prompt):
+    amount = -1
+    while amount < 0:
+        try:
+            amount = int(input(prompt))
+            if amount < 0:
+                print('Introduce valores mayores a 0')
+        except ValueError:
+            print('No puedes introducir caracteres, sólo números')
+    return amount
