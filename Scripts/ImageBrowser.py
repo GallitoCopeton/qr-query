@@ -12,7 +12,6 @@ class ImageBrowser(Browser.Browser):
         try:
             images = ir.readManyFromDbDetails(self.DB, self.QR)
             if len(images) == 0:
-                print('Images found: {}'.format((images)))
                 self.found = False
                 return {
                     'timeout': self.timeout,
@@ -21,7 +20,6 @@ class ImageBrowser(Browser.Browser):
                     'images': []
                 }
             else:
-                print('Images found: {}'.format(len(images)))
                 self.found = True
                 return {
                     'timeout': self.timeout,
@@ -38,3 +36,9 @@ class ImageBrowser(Browser.Browser):
                 'location': self.LOCATION,
                 'images': []
             }
+
+    def getLatestQrs(self, n):
+        cursor = self.DB.imagetotals.find().limit(n).sort('_id', -1)
+        foundQrs = [doc['filename'] for doc in cursor]
+        return sorted(set(foundQrs), key=foundQrs.index)
+    

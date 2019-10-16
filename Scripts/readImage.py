@@ -13,7 +13,7 @@ def readSingleFromDb(db, qr, count=0):
     This function will read images from a database, local or remote.
     Will return 0 if no images found
     """
-    cursor = db.imagestotals.find_one({'fileName': qr, 'count': count})
+    cursor = db.imagetotals.find_one({'filename': qr, 'count': count})
     if cursor:
         return readb64(cursor['file'])
     else:
@@ -25,11 +25,13 @@ def readSingleFromDbDetails(db, qr, count=0):
     This function will read images from a database, local or remote.
     Will return 0 if no images found
     """
-    cursor = db.imagestotals.find_one({'fileName': qr, 'count': count})
+    cursor = db.imagetotals.find_one({'filename': qr, 'count': count})
     if cursor:
         return {
             'image': readb64(cursor['file']),
-            'createdAt': datetime.date(cursor['createdAt'])
+            'createdAt': datetime.date(cursor['createdAt']),
+            'qr': cursor['fileName'],
+            'count': cursor['count']
         }
     else:
         return 0
@@ -40,7 +42,7 @@ def readManyFromDb(db, qr):
     This function will read images from a database, local or remote.
     Will return an empty array if no images found
     """
-    cursor = db.imagestotals.find({'fileName': qr})
+    cursor = db.imagetotals.find({'filename': qr}).sort([('createdAt', pymongo.DESCENDING)])
     if cursor is not None:
         return getImageList(cursor)
     else:
@@ -52,7 +54,7 @@ def readManyFromDbDetails(db, qr):
     This function will read images from a database, local or remote.
     Will return an empty array if no images found
     """
-    cursor = db.imagestotals.find({'fileName': qr})
+    cursor = db.imagetotals.find({'filename': qr}).sort([('createdAt', pymongo.DESCENDING)]).limit(10)
     if cursor is not None:
         return getImageListDetails(cursor)
     else:
@@ -84,15 +86,28 @@ def getImageListDetails(cursor):
     """
     return [{
         'image': readb64(entry['file']),
-        'createdAt': datetime.date(entry['createdAt'])
+        'createdAt': datetime.date(entry['createdAt']),
+        'qr': entry['filename'],
+        'count': entry['count']
     } for entry in cursor]
 
 
-def show_results(images):
-    fig = plt.figure(figsize=(15, 15))
+def showImages(images):
+    fig = plt.figure(figsize=(25,  25))
     fig.subplots_adjust(.1, 0)
     for i, image in enumerate(images):
-        ax = fig.add_subplot(1, 3, i+1)
+        ax = fig.add_subplot(len(images), 1, i+1)
         plt.axis('off')
-        ax.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+        if type(image) is dict:
+            imageBGR = image['image']
+            date = image['createdAt']
+            qr = image['qr']
+            count = image['count']
+            title = '{}-{}-Num({})'.format(date, qr, count)
+            ax.imshow(cv2.cvtColor(imageBGR, cv2.COLOR_BGR2RGB))
+            plt.title(title)
+        else:
+            ax.imshow(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+            title = 'Num({})'.format(str(i+1))
+            plt.title(title)
     plt.show()
