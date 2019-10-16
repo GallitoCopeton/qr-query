@@ -1,4 +1,3 @@
-
 import re
 
 import cv2
@@ -9,8 +8,6 @@ from geopy.geocoders import Nominatim
 
 import perspective as pPe
 import preProcessing as pP
-import read_image as ir
-import readImage as rI
 import sorts as srt
 from DataBrowser import DataBrowser
 from ImageBrowser import ImageBrowser
@@ -18,7 +15,7 @@ from ImageBrowser import ImageBrowser
 # Variables that should not change their values are gritten in UPPER CASE.
 
 # Default URIs to connect to MongoDB URI1: LOCAL server URI2: Atlas.
-URI1 = 'mongodb://findOnlyReadUser:RojutuNHqy@idenmon.zapto.org:888/?authSource=prodLaboratorio'
+URI1 = 'mongodb://imagesUser:cK90iAgQD005@idenmon.zapto.org:888/unimaHealthImages?authSource=unimaHealthImages&authMechanism=SCRAM-SHA-1'
 URI2 = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
 
 
@@ -81,7 +78,7 @@ def localMongoConnection(URI):
     if URI:
         try:
             CLIENT1 = pymongo.MongoClient(URI)
-            DB1 = CLIENT1.prodLaboratorio
+            DB1 = CLIENT1.unimaHealthImages
             return DB1
         except pymongo.errors.InvalidURI:
             return None
@@ -141,8 +138,9 @@ def isNone(variable):
 def splitInputQrs(inputQrs):
     if len(inputQrs) == 0:
         return None
-    regexSplit = r'\s?[, ]\s?'
-    return re.split(regexSplit, inputQrs)
+    inputQrs = ",".join(inputQrs.split())
+    regex = r'[^,\s][^\,]*[^,\s]*'
+    return re.findall(regex, inputQrs)
 
 
 def askForAmount(prompt):
@@ -155,3 +153,19 @@ def askForAmount(prompt):
         except ValueError:
             print('No puedes introducir caracteres, sólo números')
     return amount
+
+
+def getLatestImagesQrs(n):
+    DB1 = localMongoConnection(URI1)
+    localImageBrowser = ImageBrowser(None, DB1, 'local')
+    return localImageBrowser.getLatestQrs(n)
+
+
+def getLatestRegistersQrs(n):
+    DB2 = cloudMongoConnection(URI2)
+    cloudImageBrowser = DataBrowser(None, DB2, 'cloud')
+    return cloudImageBrowser.getLatestQrs(n)
+
+
+def fixQr(qr):
+    return re.sub(r'[\[\]\'\"]', r'', qr)

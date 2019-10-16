@@ -12,8 +12,7 @@ class DataBrowser(Browser):
 
     def browseData(self):
         try:
-            qr_documents = self.DB.registerstotals.find(
-                {'qrCode': self.QR}, no_cursor_timeout=True).limit(8)
+            qr_documents = self.DB.registerstotals.find({'qrCode': self.QR}).limit(10)
             self.timeout = False
             if qr_documents.count() == 0:
                 self.found = False
@@ -77,10 +76,17 @@ class DataBrowser(Browser):
         # Update dataframe
         result_dataframe = pd.DataFrame.from_dict(list_dicts)
         result_dataframe = result_dataframe[header]
-        # display(result_dataframe.head())
+        result_dataframe = result_dataframe.sort_values(
+            by=['No. Imagen'], ascending=False)
+        display(result_dataframe.head())
         return {
             'timeout': self.timeout,
             'found': self.found,
             'location': self.LOCATION,
             'data': result_dataframe
         }
+    
+    def getLatestQrs(self, n):
+        cursor = self.DB.registerstotals.find().limit(n).sort('_id', -1)
+        foundQrs = [doc['qrCode'] for doc in cursor]
+        return sorted(set(foundQrs), key=foundQrs.index)
