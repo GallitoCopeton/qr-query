@@ -1,0 +1,34 @@
+{
+	"series": [
+		{
+			"serie": {
+				"name": "Zambia_1",
+				"prefixCode": "1021908002"
+			}
+		},
+		{
+			"serie": {
+				"name": "Cameroon_1_1",
+				"prefixCode": "1021903002"
+			}
+		},
+		{
+			"serie": {
+				"name": "Cameroon_1_2",
+				"prefixCode": "1021907001"
+			}
+		},
+		{
+			"serie": {
+				"name": "Cameroon_3",
+				"prefixCode": "1021908004"
+			}
+		},
+		{
+			"serie": {
+				"name": "Zimbabwe_1",
+				"prefixCode": "1021909001"
+			}
+		}
+	]
+}

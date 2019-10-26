@@ -8,24 +8,24 @@ import pymongo
 from matplotlib import pyplot as plt
 
 
-def readSingleFromDb(db, qr, count=0):
+def readSingleFromDb(collection, qr, count=0):
     """
     This function will read images from a database, local or remote.
     Will return 0 if no images found
     """
-    cursor = db.imagetotals.find_one({'filename': qr, 'count': count})
+    cursor = collection.find_one({'filename': qr, 'count': count})
     if cursor:
         return readb64(cursor['file'])
     else:
         return 0
 
 
-def readSingleFromDbDetails(db, qr, count=0):
+def readSingleFromDbDetails(collection, qr, count=0):
     """
     This function will read images from a database, local or remote.
     Will return 0 if no images found
     """
-    cursor = db.imagetotals.find_one({'filename': qr, 'count': count})
+    cursor = collection.find_one({'filename': qr, 'count': count})
     if cursor:
         return {
             'image': readb64(cursor['file']),
@@ -37,24 +37,26 @@ def readSingleFromDbDetails(db, qr, count=0):
         return 0
 
 
-def readManyFromDb(db, qr):
+def readManyFromDb(collection, qr):
     """
     This function will read images from a database, local or remote.
     Will return an empty array if no images found
     """
-    cursor = db.imagetotals.find({'filename': qr}).sort([('createdAt', pymongo.DESCENDING)])
+    cursor = collection.find({'filename': qr}).sort(
+        [('createdAt', pymongo.DESCENDING)])
     if cursor is not None:
         return getImageList(cursor)
     else:
         return []
 
 
-def readManyFromDbDetails(db, qr):
+def readManyFromDbDetails(collection, qr):
     """
     This function will read images from a database, local or remote.
     Will return an empty array if no images found
     """
-    cursor = db.imagetotals.find({'filename': qr}).sort([('createdAt', pymongo.DESCENDING)]).limit(10)
+    cursor = collection.find({'filename': qr}).sort(
+        [('createdAt', pymongo.DESCENDING)]).limit(10)
     if cursor is not None:
         return getImageListDetails(cursor)
     else:
