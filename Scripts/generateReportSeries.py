@@ -2,10 +2,12 @@ import datetime
 from dateutil import tz
 import json
 from collections import defaultdict
+import sys
 
 import numpy as np
 import pandas as pd
 
+sys.path.insert(0, './Helper Scripts')
 import qrQuery
 
 
@@ -20,18 +22,19 @@ def getLocalTime(date):
 URI2 = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
 DB2 = qrQuery.cloudMongoConnection(URI2)
 # %%
+days = 3
 todaysDate = datetime.datetime.now()
-day = datetime.timedelta(days=1)
+day = datetime.timedelta(days=days)
 yesterdayDate = todaysDate-day
 # %%
-with open('series.json', 'r') as file:
+with open('./json/series.json', 'r') as file:
     seriesJson = json.load(file)['series']
 prefixCodes = [serie['serie']['prefixCode'] for serie in seriesJson]
 seriesNames = [serie['serie']['name'] for serie in seriesJson]
 seriesDict = dict(zip(seriesNames, prefixCodes))
 # %%
 qr_documents_today = DB2.registerstotals.find(
-    {'createdAt': {'$lt': todaysDate, '$gte': yesterdayDate}}).sort('_id', -1)
+    ).sort('_id', -1)
 seriesCodes = defaultdict(set)
 default_header = ['No. Imagen', 'Validez', 'Fecha']
 
@@ -42,7 +45,8 @@ for doc in qr_documents_today:
         seriesCodes[qrPrefix].add(qrCode)
 
 qrSerieInfo = {}
-writer = pd.ExcelWriter('testd.xlsx', engine='xlsxwriter')
+excelName = f'Reporte-{str(todaysDate.date())}-{days}-dias.xlsx'
+writer = pd.ExcelWriter(excelName, engine='xlsxwriter')
 startRow = 0
 totalTests = 0
 totalInvalidTests = 0
@@ -62,6 +66,11 @@ for serie in seriesCodes.keys():
             }
         }
         testsWithQr = DB2.registerstotals.find(queryTests)
+        print(list(testsWithQr))
+        testsWithQrCount = DB2.registerstotals.count_documents(queryTests)
+        if testsWithQrCount == 0:
+            print('No hay registros de este QR'+qrCode)
+            continue
         allTests = []
         for test in testsWithQr:
             imageNumber = test['count']

@@ -1,14 +1,14 @@
 import re
 
-import cv2
-import matplotlib.pyplot as plt
-import pandas as pd
+#import cv2
+#import matplotlib.pyplot as plt
+#import pandas as pd
 import pymongo
 from geopy.geocoders import Nominatim
 
-import perspective as pPe
-import preProcessing as pP
-import sorts as srt
+#import perspective as pPe
+#import preProcessing as pP
+#import sorts as srt
 from DataBrowser import DataBrowser
 from ImageBrowser import ImageBrowser
 
@@ -100,24 +100,24 @@ def cloudMongoConnection(URI):
         return None
 
 
-def getQrSquare(path):
-    """Use Benjas algorithm to extract the QR site instead of test site"""
-    imageCv2 = cv2.imread(path)
-    imgBinary = pP.contourBinarization(
-        imageCv2, 3, 7, 85, 2, inverse=True, mean=False)
-    externalSquare = pP.findTreeContours(imgBinary)
-    ext_index = 1
-    externalOrdSquare = srt.sortPointsContours(externalSquare)
-    perspectiveBinary = pPe.perspectiveTransform(
-        imgBinary, externalOrdSquare[ext_index], -5, True)
-    perspectiveBGR = pPe.perspectiveTransform(
-        imageCv2, externalOrdSquare[ext_index], -5)
-    external = pP.findExternalContours(perspectiveBinary)
-    if(len(external) > 0):
-        minCnt = min(external, key=cv2.contourArea)
-        return pPe.perspectiveTransform(perspectiveBGR, srt.sortPoints(minCnt), 15, False)
-    else:
-        print('No pudo leerse el código, intenta escribirlo a mano')
+#def getQrSquare(path):
+#    """Use Benjas algorithm to extract the QR site instead of test site"""
+#    imageCv2 = cv2.imread(path)
+#    imgBinary = pP.contourBinarization(
+#        imageCv2, 3, 7, 85, 2, inverse=True, mean=False)
+#    externalSquare = pP.findTreeContours(imgBinary)
+#    ext_index = 1
+#    externalOrdSquare = srt.sortPointsContours(externalSquare)
+#    perspectiveBinary = pPe.perspectiveTransform(
+#        imgBinary, externalOrdSquare[ext_index], -5, True)
+#    perspectiveBGR = pPe.perspectiveTransform(
+#        imageCv2, externalOrdSquare[ext_index], -5)
+#    external = pP.findExternalContours(perspectiveBinary)
+#    if(len(external) > 0):
+#        minCnt = min(external, key=cv2.contourArea)
+#        return pPe.perspectiveTransform(perspectiveBGR, srt.sortPoints(minCnt), 15, False)
+#    else:
+#        print('No pudo leerse el código, intenta escribirlo a mano')
 
 
 def isValidQr(qrCode):

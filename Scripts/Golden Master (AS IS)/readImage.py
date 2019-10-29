@@ -8,13 +8,17 @@ import pymongo
 from matplotlib import pyplot as plt
 
 
+def readLocal(path):
+    return cv2.imread(path, 1)
+
+
 def readSingleFromDb(collection, qr, count=0):
     """
     This function will read images from a database, local or remote.
     Will return 0 if no images found
     """
     cursor = collection.find_one({'filename': qr, 'count': count})
-    if cursor is not None:
+    if cursor:
         return readb64(cursor['file'])
     else:
         return 0
@@ -26,7 +30,7 @@ def readSingleFromDbDetails(collection, qr, count=0):
     Will return 0 if no images found
     """
     cursor = collection.find_one({'filename': qr, 'count': count})
-    if cursor is not None:
+    if cursor:
         return {
             'image': readb64(cursor['file']),
             'createdAt': datetime.date(cursor['createdAt']),
@@ -46,6 +50,32 @@ def readManyFromDb(collection, qr):
         [('createdAt', pymongo.DESCENDING)])
     if cursor is not None:
         return getImageList(cursor)
+    else:
+        return []
+
+
+def readManyCustomQuery(collection, query, limit=10):
+    """
+    This function will read images from a database, local or remote.
+    Will return an empty array if no images found
+    """
+    cursor = collection.find(query).sort(
+        [('createdAt', pymongo.DESCENDING)]).limit(limit)
+    if cursor is not None:
+        return getImageList(cursor)
+    else:
+        return []
+    
+    
+def readManyCustomQueryDetails(collection, query, limit=10):
+    """
+    This function will read images from a database, local or remote.
+    Will return an empty array if no images found
+    """
+    cursor = collection.find(query).sort(
+        [('createdAt', pymongo.DESCENDING)]).limit(limit)
+    if cursor is not None:
+        return getImageListDetails(cursor)
     else:
         return []
 
@@ -86,38 +116,19 @@ def getImageListDetails(cursor):
     """
     This function will arange a list of decoded images from a Mongo cursor.
     """
-    return [{
-        'image': readb64(entry['file']),
-        'createdAt': datetime.date(entry['createdAt']),
-        'qr': entry['filename'],
-        'count': entry['count']
-    } for entry in cursor]
-
-
-def readManyCustomQuery(collection, query, limit=10):
-    """
-    This function will read images from a database, local or remote.
-    Will return an empty array if no images found
-    """
-    cursor = collection.find(query).sort(
-        [('createdAt', pymongo.DESCENDING)]).limit(limit)
-    if cursor is not None:
-        return getImageList(cursor)
-    else:
-        return []
-
-
-def readManyCustomQueryDetails(collection, query, limit=10):
-    """
-    This function will read images from a database, local or remote.
-    Will return an empty array if no images found
-    """
-    cursor = collection.find(query).sort(
-        [('createdAt', pymongo.DESCENDING)]).limit(limit)
-    if cursor is not None:
-        return getImageListDetails(cursor)
-    else:
-        return []
+    imagesInfo = []
+    for entry in cursor:
+        info = {}
+        if 'file' in entry.keys():
+            info['image'] = readb64(entry['file'])
+        if 'createdAt' in entry.keys():
+            info['createdAt'] = datetime.date(entry['createdAt'])
+        if 'fileName' in entry.keys():
+            info['qr'] = entry['fileName']
+        if 'count' in entry.keys():
+            info['count'] = entry['count']
+        imagesInfo.append(info)
+    return imagesInfo
 
 
 def showImages(images):
