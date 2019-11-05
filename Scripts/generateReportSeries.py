@@ -1,14 +1,22 @@
 import datetime
-from dateutil import tz
 import json
-from collections import defaultdict
+import os
+import re
 import sys
+from collections import defaultdict
 
 import numpy as np
 import pandas as pd
+from dateutil import tz
+from matplotlib import pyplot as plt
 
 sys.path.insert(0, './Helper Scripts')
+sys.path.insert(0, './Golden Master (AS IS)')
+import appProcessFunction as aP
 import qrQuery
+import readImage as rI
+from preProcessing import BGR2RGB
+
 
 
 def getLocalTime(date):
@@ -18,14 +26,24 @@ def getLocalTime(date):
     return date.astimezone(localTz)
 
 
+def makeFolder(folderName):
+    if not os.path.isdir(folderName):
+        os.mkdir(folderName)
+
+
 # %%
 URI2 = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
 DB2 = qrQuery.cloudMongoConnection(URI2)
+
+imagesURI = 'mongodb://imagesUser:cK90iAgQD005@idenmon.zapto.org:888/unimaHealthImages?authMechanism=SCRAM-SHA-1&authSource=unimaHealthImages'
+imagesDB = qrQuery.localMongoConnection(imagesURI)
 # %%
-days = 3
 todaysDate = datetime.datetime.now()
-day = datetime.timedelta(days=days)
-yesterdayDate = todaysDate-day
+startDay = 0
+finishDay = 2
+startDate = todaysDate - datetime.timedelta(days=startDay)
+finishDate = startDate - datetime.timedelta(days=finishDay)
+
 # %%
 with open('./json/series.json', 'r') as file:
     seriesJson = json.load(file)['series']
@@ -33,105 +51,149 @@ prefixCodes = [serie['serie']['prefixCode'] for serie in seriesJson]
 seriesNames = [serie['serie']['name'] for serie in seriesJson]
 seriesDict = dict(zip(seriesNames, prefixCodes))
 # %%
-qr_documents_today = DB2.registerstotals.find(
-    ).sort('_id', -1)
-seriesCodes = defaultdict(set)
-default_header = ['No. Imagen', 'Validez', 'Fecha']
-
-for doc in qr_documents_today:
-    qrCode = doc['qrCode']
-    qrPrefix = qrCode[0:10]
-    if qrPrefix in seriesDict.values():
-        seriesCodes[qrPrefix].add(qrCode)
-
-qrSerieInfo = {}
-excelName = f'Reporte-{str(todaysDate.date())}-{days}-dias.xlsx'
-writer = pd.ExcelWriter(excelName, engine='xlsxwriter')
+# Carpetas
+allReportsFolder = './reports'
+makeFolder(allReportsFolder)
+dateString = re.sub(r':', '_', todaysDate.ctime())[4:]
+todaysReportFolder = f'Reporte de {dateString}/'
+fullPath = '/'.join([allReportsFolder, todaysReportFolder])
+makeFolder(fullPath)
+# Inicialización archivo excel
+excelName = f'Reporte-{dateString}-{finishDay-startDay}-dias.xlsx'
+fullExcelPath = ''.join([fullPath, excelName])
+writer = pd.ExcelWriter(fullExcelPath, engine='xlsxwriter')
 startRow = 0
+# Inicialización valores tabla resumen
 totalTests = 0
 totalInvalidTests = 0
 totalValidTests = 0
 totalPositives = 0
 totalNegatives = 0
-for serie in seriesCodes.keys():
-    qrDfs = []
-    qrList = list(seriesCodes[serie])
-    qrSerieInfo[serie] = {}
-    for qrCode in qrList:
-        listQrResults = []
-        queryTests = {
-            'qrCode': qrCode,
-            'createdAt': {
-                '$lt': todaysDate, '$gte': yesterdayDate
-            }
-        }
-        testsWithQr = DB2.registerstotals.find(queryTests)
-        print(list(testsWithQr))
-        testsWithQrCount = DB2.registerstotals.count_documents(queryTests)
-        if testsWithQrCount == 0:
-            print('No hay registros de este QR'+qrCode)
-            continue
-        allTests = []
-        for test in testsWithQr:
-            imageNumber = test['count']
-            validity = test['control'].upper()
-            date = str(getLocalTime(test['createdAt']))[0:-10]
-            testInfo = [imageNumber, validity, date]
-            headers = ['Count', 'Valid', 'Date']
-            [testInfo.append(marker['result'].upper())
-             for marker in test['marker']]
-            [testInfo.append(disease['result'].upper())
-             for disease in test['disease']]
-            [headers.append(marker['name'].upper())
-             for marker in test['marker']]
-            [headers.append(disease['name'].upper())
-             for disease in test['disease']]
-            allTests.append(testInfo)
-        iterables = [[serie], [qrCode]*len(allTests)]
-        index = pd.MultiIndex.from_product(iterables)
-        tempDf = pd.DataFrame(allTests, index=index, columns=headers)
-        tempDf.index.names = ['Serie', 'QR']
-        qrDfs.append(tempDf)
-    seriesDf = pd.concat(qrDfs)
-    totalTests += len(seriesDf)
-    totalValidTests += len(seriesDf[seriesDf['Valid'] == 'VALID'])
-    totalInvalidTests += len(seriesDf[seriesDf['Valid'] == 'INVALID'])
-    totalPositives += len(seriesDf[seriesDf['TB'] == 'POSITIVE'])
-    totalNegatives += len(seriesDf[seriesDf['TB'] == 'NEGATIVE'])
-    if startRow == 0:
-        seriesDf.to_excel(writer, sheet_name='Sheet1',
-                          startrow=startRow)
-    else:
-        seriesDf.to_excel(writer, sheet_name='Sheet1',
-                          startrow=startRow, header=False)
-    startRow += len(qrList) + 2
-
+totalTestsWithImages = 0
+totalTestsNoImages = 0
+# Búsqueda de fecha
+dateQuery = {'createdAt': {
+    '$lt': startDate, '$gte': finishDate
+}}
 # %%
+for key in seriesDict.keys():
+    prefix = seriesDict[key]
+    seriesRegEx = re.compile(prefix)
+    regExQuery = {'qrCode': seriesRegEx}
+
+    fullQuery = {'$and': [
+        dateQuery,
+        regExQuery
+    ]}
+    seriesDocumentsCount = DB2.registerstotals.count_documents(fullQuery)
+    if seriesDocumentsCount == 0:
+        print(
+            f'No existen registros en este periodo en la serie {key} con prefijo {prefix}')
+        continue
+    seriesDocuments = DB2.registerstotals.find(fullQuery)
+    allTestInfo = []
+    testDataframes = []
+    for test in seriesDocuments:
+        qrCode = test['qrCode']
+        registerNumber = test['count']
+        validity = test['control'].upper()
+        date = getLocalTime(test['createdAt']).ctime()
+        testInfo = [key, qrCode, registerNumber,
+                    validity, date]
+        headers = ['Envío', 'Código QR', 'Count', 'Valid', 'Date']
+        [testInfo.append(marker['result'].upper())
+            for marker in test['marker']]
+        [testInfo.append(disease['result'].upper())
+            for disease in test['disease']]
+        [headers.append(marker['name'].upper())
+            for marker in test['marker']]
+        [headers.append(disease['name'].upper())
+            for disease in test['disease']]
+        imageTestQuery = {
+            'filename': qrCode,
+            'count': registerNumber
+        }
+        imageDetails = rI.readManyCustomQueryDetails(
+            imagesDB.imagetotals, imageTestQuery, 1)
+        imagesExist = 'Sí' if len(imageDetails) > 0 else 'No'
+        if len(imageDetails) > 0:
+            imageDetails[0]['qr'] = qrCode
+            error = aP.doFullProcess(
+                imageDetails[0], figsize=6, folder=fullPath, show=True)
+            if error:
+                print(
+                    f'Ocurrió un error con el registro {registerNumber} del qr {qrCode}')
+            originalImageName = 'original.png'
+            fullPathOriginalImage = ''.join(
+                [fullPath, qrCode, '-', str(registerNumber), '/', originalImageName])
+            plt.imsave(fullPathOriginalImage,
+                       BGR2RGB(imageDetails[0]['image']))
+        else:
+            print(
+                f'El registro {registerNumber} del qr {qrCode} no tiene imágenes')
+            pathNotFoundImage = ''.join(
+                [fullPath, qrCode, '-', str(registerNumber)])
+            makeFolder(pathNotFoundImage)
+        testInfo.append(imagesExist)
+        headers.append('Imágenes')
+        allTestInfo.append(testInfo)
+    testDataframe = pd.DataFrame(allTestInfo, columns=headers)
+    testDataframe.set_index('Envío', inplace=True)
+    testDataframes.append(testDataframe)
+    seriesDataframe = pd.concat(testDataframes)
+
+    # Resumen de información
+    totalTests += len(seriesDataframe)
+    totalValidTests += len(
+        seriesDataframe[seriesDataframe['Valid'] == 'VALID'])
+    totalInvalidTests += len(
+        seriesDataframe[seriesDataframe['Valid'] == 'INVALID'])
+    totalPositives += len(
+        seriesDataframe[seriesDataframe['TB'] == 'POSITIVE'])
+    totalNegatives += len(
+        seriesDataframe[seriesDataframe['TB'] == 'NEGATIVE'])
+    totalTestsWithImages += len(
+        seriesDataframe[seriesDataframe['Imágenes'] == 'Sí'])
+    totalTestsNoImages += len(
+        seriesDataframe[seriesDataframe['Imágenes'] == 'No'])
+    if startRow == 0:
+        seriesDataframe.to_excel(writer, sheet_name='Sheet1',
+                                 startrow=startRow)
+    else:
+        seriesDataframe.to_excel(writer, sheet_name='Sheet1',
+                                 startrow=startRow, header=False)
+    startRow += len(list(seriesDocuments)) + 2
+
+# %% Agregar tabla de resumen
 reportHeaders = [
+    'Días del reporte',
     'Total Tests',
     'Total Valid Tests',
     'Total Invalid Tests',
     'Total Positives',
-    'Total Negatives'
+    'Total Negatives',
+    'Total Tests With Images',
+    'Total Tests Without Images'
 ]
 reportData = [
+    finishDay-startDay,
     totalTests,
     totalValidTests,
     totalInvalidTests,
     totalPositives,
-    totalNegatives
+    totalNegatives,
+    totalTestsWithImages,
+    totalTestsNoImages
 ]
-reportDataframe = pd.DataFrame(reportData, index=reportHeaders, columns=['Cantidad'])
-reportDataframe.to_excel(writer, sheet_name='Sheet1',startcol=len(headers)+5)
+reportDataframe = pd.DataFrame(
+    reportData, index=reportHeaders, columns=['Cantidad'])
+reportDataframe.to_excel(writer, sheet_name='Sheet1',
+                         startcol=len(headers) + 1)
 worksheet = writer.sheets['Sheet1']
-worksheet
 worksheet.set_column('A:A', 10, None)
-worksheet.set_column('B:B', 18, None)
+worksheet.set_column('B:B', 25, None)
+worksheet.set_column('D:D', 15, None)
 worksheet.set_column('E:E', 25, None)
-worksheet.set_column('F:F', 18, None)
-worksheet.set_column('G:G', 18, None)
-worksheet.set_column('H:H', 18, None)
-worksheet.set_column('I:I', 18, None)
-worksheet.set_column('J:J', 18, None)
-worksheet.set_column('N:N', 18, None)
+worksheet.set_column('F:K', 17, None)
+worksheet.set_column('M:M', 25, None)
 writer.save()

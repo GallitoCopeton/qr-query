@@ -465,6 +465,7 @@ def hasConvexDefect(binaryMarker):
 def getBackgroundColor(markerGray, percentage):
     h,w = markerGray.shape[:2]
     percentage = int(percentage*h)
+    kernel = 3
     corner1 = markerGray[percentage, percentage]
     corner2 = markerGray[percentage, h-percentage]
     corner3 = markerGray[h-percentage, percentage]

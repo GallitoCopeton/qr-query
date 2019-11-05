@@ -66,8 +66,8 @@ def getMarkers(testSite, testSiteEq):
 
 def markerClusterProcessing(markers):
     criteria = (cv2.TERM_CRITERIA_MAX_ITER, 10000, 1000)
-    k = 4
-    attempts = 40
+    k = 5
+    attempts = 100
     markersRecon = []
     markersBin = []
     markersTrans = []
@@ -76,7 +76,7 @@ def markerClusterProcessing(markers):
         # CLUSTER (Loki) ==> START
         clusterRecon = pP.clusterReconstruction(marker, criteria, k, attempts)
         clusterGray = cv2.cvtColor(clusterRecon, cv2.COLOR_BGR2GRAY)
-        t = inA.getBackgroundColor(clusterGray, percentage=.25)
+        t = inA.getBackgroundColor(clusterGray, percentage=.3)+15
         _, clusterBin = cv2.threshold(clusterGray, t, 255, cv2.THRESH_BINARY)
         clusterMasked = inA.andOperation(clusterBin, mask)
         dilateKernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (2, 2))

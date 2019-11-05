@@ -36,7 +36,7 @@ registersDB = qrQuery.cloudMongoConnection(registersURI)
 imagesURI = 'mongodb://imagesUser:cK90iAgQD005@idenmon.zapto.org:888/unimaHealthImages?authMechanism=SCRAM-SHA-1&authSource=unimaHealthImages'
 imagesDB = qrQuery.localMongoConnection(imagesURI)
 # %%
-days = 5
+days = 10
 todaysDate = datetime.datetime.now()
 daysBefore = datetime.timedelta(days=days)
 targetDate = todaysDate-daysBefore
@@ -97,6 +97,7 @@ for country in countriesPolygons[0].keys():
     })
     allTestInfo = []
     testDataframes = []
+    headers = ['País', 'Código QR', 'Count', 'Valid', 'Date']
     for test in documentsFound:
         qrCode = test['qrCode']
         registerNumber = test['count']
@@ -104,34 +105,33 @@ for country in countriesPolygons[0].keys():
         date = getLocalTime(test['createdAt']).ctime()
         testInfo = [country.capitalize(), qrCode, registerNumber,
                     validity, date]
-        headers = ['País', 'Código QR', 'Count', 'Valid', 'Date']
+        
         [testInfo.append(marker['result'].upper())
             for marker in test['marker']]
-        [testInfo.append(disease['result'].upper())
-            for disease in test['disease']]
         [headers.append(marker['name'].upper())
             for marker in test['marker']]
-        [headers.append(disease['name'].upper())
-            for disease in test['disease']]
         imageTestQuery = {
             'filename': qrCode,
             'count': registerNumber
         }
+        if 'HIV' in headers:
+            testInfo.insert(-2, None)
         imageDetails = rI.readManyCustomQueryDetails(
             imagesDB.imagetotals, imageTestQuery, 1)
         imagesExist = 'Sí' if len(imageDetails) > 0 else 'No' 
         if len(imageDetails) > 0:
             imageDetails[0]['qr'] = qrCode
-            error = aP.doFullProcess(
-                imageDetails[0], figsize=8, folder=fullPath, show=True)
+            error = False
+            #error = aP.doFullProcess(
+            #    imageDetails[0], figsize=8, folder=fullPath, show=True)
             if error:
                 print(
                     f'Ocurrió un error con el registro {registerNumber} del qr {qrCode}')
-            originalImageName = 'original.png'
-            fullPathOriginalImage = ''.join(
-                [fullPath, qrCode,'-', str(registerNumber), '/', originalImageName])
-            plt.imsave(fullPathOriginalImage,
-                       BGR2RGB(imageDetails[0]['image']))
+#            originalImageName = 'original.png'
+#            fullPathOriginalImage = ''.join(
+#                [fullPath, qrCode,'-', str(registerNumber), '/', originalImageName])
+#            plt.imsave(fullPathOriginalImage,
+#                       BGR2RGB(imageDetails[0]['image']))
         else:
             print(f'El registro {registerNumber} del qr {qrCode} no tiene imágenes')
             pathNotFoundImage = ''.join([fullPath, qrCode, '-', str(registerNumber)])
@@ -139,8 +139,8 @@ for country in countriesPolygons[0].keys():
         testInfo.append(imagesExist)
         headers.append('Imágenes')
         allTestInfo.append(testInfo)
-    testDataframe = pd.DataFrame(allTestInfo, columns=headers)
-    testDataframe = testDataframe.set_index('País')
+    testDataframe = pd.DataFrame(allTestInfo, columns=sorted(set(headers), key=headers.index))
+    testDataframe.set_index('País', inplace=True)
     testDataframes.append(testDataframe)
     countryDataframe = pd.concat(testDataframes)
     totalTests += len(countryDataframe)
