@@ -1,9 +1,10 @@
+
 import datetime
 import json
 import os
 import re
 import sys
-from collections import defaultdict
+from collections import OrderedDict
 
 import numpy as np
 import pandas as pd
@@ -12,12 +13,10 @@ from matplotlib import pyplot as plt
 
 sys.path.insert(0, './Helper Scripts')
 sys.path.insert(0, './Golden Master (AS IS)')
-import appProcessFunction as aP
-import qrQuery
-import readImage as rI
 from preProcessing import BGR2RGB
-
-
+import readImage as rI
+import qrQuery
+import appProcessFunction as aP
 
 def getLocalTime(date):
     fromZone = tz.tzutc()
@@ -35,14 +34,14 @@ def makeFolder(folderName):
 URI2 = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
 DB2 = qrQuery.cloudMongoConnection(URI2)
 
-imagesURI = 'mongodb://imagesUser:cK90iAgQD005@idenmon.zapto.org:888/unimaHealthImages?authMechanism=SCRAM-SHA-1&authSource=unimaHealthImages'
-imagesDB = qrQuery.localMongoConnection(imagesURI)
+imagesURI = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
+imagesDB = qrQuery.cloudMongoConnection(imagesURI)
 # %%
 todaysDate = datetime.datetime.now()
-startDay = 0
-finishDay = 2
+startDay = 10
+finishDay = 12
 startDate = todaysDate - datetime.timedelta(days=startDay)
-finishDate = startDate - datetime.timedelta(days=finishDay)
+finishDate = startDate - datetime.timedelta(days=finishDay-startDay)
 
 # %%
 with open('./json/series.json', 'r') as file:
@@ -76,11 +75,11 @@ dateQuery = {'createdAt': {
     '$lt': startDate, '$gte': finishDate
 }}
 # %%
+seriesDataframes = []
 for key in seriesDict.keys():
     prefix = seriesDict[key]
     seriesRegEx = re.compile(prefix)
     regExQuery = {'qrCode': seriesRegEx}
-
     fullQuery = {'$and': [
         dateQuery,
         regExQuery
@@ -98,23 +97,21 @@ for key in seriesDict.keys():
         registerNumber = test['count']
         validity = test['control'].upper()
         date = getLocalTime(test['createdAt']).ctime()
-        testInfo = [key, qrCode, registerNumber,
-                    validity, date]
-        headers = ['Envío', 'Código QR', 'Count', 'Valid', 'Date']
-        [testInfo.append(marker['result'].upper())
-            for marker in test['marker']]
-        [testInfo.append(disease['result'].upper())
-            for disease in test['disease']]
-        [headers.append(marker['name'].upper())
-            for marker in test['marker']]
-        [headers.append(disease['name'].upper())
-            for disease in test['disease']]
+        generalInfo = [('Envío', key),
+                       ('Código QR', qrCode),
+                       ('Registro No.', registerNumber),
+                       ('Validez', test['control'].upper()),
+                       ('Fecha', getLocalTime(test['createdAt']).ctime())]
+        proteinInfo = [(marker['name'].upper(), marker['result'].upper())
+                       for marker in test['marker']]
+        diseaseInfo = [(disease['name'].upper(), disease['result'].upper())
+                       for disease in test['disease']]
         imageTestQuery = {
             'filename': qrCode,
             'count': registerNumber
         }
         imageDetails = rI.readManyCustomQueryDetails(
-            imagesDB.imagetotals, imageTestQuery, 1)
+            imagesDB.imagestotals, imageTestQuery, 1)
         imagesExist = 'Sí' if len(imageDetails) > 0 else 'No'
         if len(imageDetails) > 0:
             imageDetails[0]['qr'] = qrCode
@@ -134,35 +131,40 @@ for key in seriesDict.keys():
             pathNotFoundImage = ''.join(
                 [fullPath, qrCode, '-', str(registerNumber)])
             makeFolder(pathNotFoundImage)
-        testInfo.append(imagesExist)
-        headers.append('Imágenes')
-        allTestInfo.append(testInfo)
-    testDataframe = pd.DataFrame(allTestInfo, columns=headers)
-    testDataframe.set_index('Envío', inplace=True)
-    testDataframes.append(testDataframe)
-    seriesDataframe = pd.concat(testDataframes)
+        imagesInfo = [('Imágenes', imagesExist)]
+        testInfo = generalInfo+proteinInfo+diseaseInfo+imagesInfo
+        testInfoDict = OrderedDict(testInfo)
+        allTestInfo.append(testInfoDict)
+    seriesDataframe = pd.DataFrame(allTestInfo)
+    seriesDataframes.append(seriesDataframe)
 
-    # Resumen de información
-    totalTests += len(seriesDataframe)
-    totalValidTests += len(
-        seriesDataframe[seriesDataframe['Valid'] == 'VALID'])
-    totalInvalidTests += len(
-        seriesDataframe[seriesDataframe['Valid'] == 'INVALID'])
-    totalPositives += len(
-        seriesDataframe[seriesDataframe['TB'] == 'POSITIVE'])
-    totalNegatives += len(
-        seriesDataframe[seriesDataframe['TB'] == 'NEGATIVE'])
-    totalTestsWithImages += len(
-        seriesDataframe[seriesDataframe['Imágenes'] == 'Sí'])
-    totalTestsNoImages += len(
-        seriesDataframe[seriesDataframe['Imágenes'] == 'No'])
-    if startRow == 0:
-        seriesDataframe.to_excel(writer, sheet_name='Sheet1',
-                                 startrow=startRow)
-    else:
-        seriesDataframe.to_excel(writer, sheet_name='Sheet1',
-                                 startrow=startRow, header=False)
-    startRow += len(list(seriesDocuments)) + 2
+try:
+    fullDataframe = pd.concat(seriesDataframes, sort=False)
+except ValueError:
+    print('No se encontró ningún registro en esta búsqueda')
+    sys.exit(0)
+fullDataframe.set_index('Envío', inplace=True)
+# Resumen de información
+totalTests += len(fullDataframe)
+totalValidTests += len(
+    fullDataframe[fullDataframe['Validez'] == 'VALID'])
+totalInvalidTests += len(
+    fullDataframe[fullDataframe['Validez'] == 'INVALID'])
+totalPositives += len(
+    fullDataframe[fullDataframe['TB'] == 'POSITIVE'])
+totalNegatives += len(
+    fullDataframe[fullDataframe['TB'] == 'NEGATIVE'])
+totalTestsWithImages += len(
+    fullDataframe[fullDataframe['Imágenes'] == 'Sí'])
+totalTestsNoImages += len(
+    fullDataframe[fullDataframe['Imágenes'] == 'No'])
+if startRow == 0:
+    fullDataframe.to_excel(writer, sheet_name='Sheet1',
+                           startrow=startRow)
+else:
+    fullDataframe.to_excel(writer, sheet_name='Sheet1',
+                           startrow=startRow, header=False)
+startRow += seriesDocumentsCount + 2
 
 # %% Agregar tabla de resumen
 reportHeaders = [
@@ -188,7 +190,7 @@ reportData = [
 reportDataframe = pd.DataFrame(
     reportData, index=reportHeaders, columns=['Cantidad'])
 reportDataframe.to_excel(writer, sheet_name='Sheet1',
-                         startrow=len(seriesDataframe) + 3,
+                         startrow=len(fullDataframe) + 3,
                          startcol=5)
 worksheet = writer.sheets['Sheet1']
 worksheet.set_column('A:A', 10, None)

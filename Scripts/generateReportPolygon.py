@@ -1,3 +1,4 @@
+
 import os
 import re
 from collections import OrderedDict
@@ -11,12 +12,12 @@ import pandas as pd
 from matplotlib import pyplot as plt
 
 sys.path.insert(0, './Helper Scripts')
-sys.path.insert(0, './Golden Master (AS IS)')
-import appProcessFunction as aP
-from preProcessing import BGR2RGB
-import readImage as rI
-import qrQuery
 
+sys.path.insert(0, './Golden Master (AS IS)')
+import qrQuery
+import readImage as rI
+from preProcessing import BGR2RGB
+import appProcessFunction as aP
 
 def getLocalTime(date):
     fromZone = tz.tzutc()
@@ -34,14 +35,14 @@ def makeFolder(folderName):
 registersURI = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
 registersDB = qrQuery.cloudMongoConnection(registersURI)
 
-imagesURI = 'mongodb://imagesUser:cK90iAgQD005@idenmon.zapto.org:888/unimaHealthImages?authMechanism=SCRAM-SHA-1&authSource=unimaHealthImages'
-imagesDB = qrQuery.localMongoConnection(imagesURI)
+imagesURI = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
+imagesDB = qrQuery.cloudMongoConnection(imagesURI)
 # %%
 todaysDate = datetime.datetime.now()
-startDay = 0
-finishDay = 2
+startDay = 100
+finishDay = 102
 startDate = todaysDate - datetime.timedelta(days=startDay)
-finishDate = startDate - datetime.timedelta(days=finishDay)
+finishDate = startDate - datetime.timedelta(days=finishDay-startDay)
 # %%
 with open('./json/polygons.json', 'r') as file:
     polygonsJson = json.load(file)['polygons']
@@ -50,7 +51,7 @@ countriesPolygons = [entry['countries'] for entry in polygonsJson]
 # Carpetas
 allReportsFolder = './reports'
 makeFolder(allReportsFolder)
-dateString = re.sub(r':', '_',todaysDate.ctime())[4:]
+dateString = re.sub(r':', '_', todaysDate.ctime())[4:]
 todaysReportFolder = f'Reporte de {dateString}/'
 fullPath = '/'.join([allReportsFolder, todaysReportFolder])
 makeFolder(fullPath)
@@ -77,62 +78,58 @@ for country in countriesPolygons[0].keys():
                          'type': 'Polygon',
                          'coordinates': polygon
                      }}}
-    
-    documentsCount = registersDB.registerstotals.count_documents({
+    fullQuery = {
         '$and': [
             {'createdAt': dateQuery},
             {'geo_loc': locationQuery}
         ]
-    })
+    }
+    documentsCount = registersDB.registerstotals.count_documents(fullQuery)
     if documentsCount == 0:
-        print(f'No existen registros en este periodo en {country.capitalize()}')
+        print(
+            f'No existen registros en este periodo en {country.capitalize()}')
         continue
-    documentsFound = registersDB.registerstotals.find({
-        '$and': [
-            {'createdAt': dateQuery},
-            {'geo_loc': locationQuery}
-        ]
-    })
+    documentsFound = registersDB.registerstotals.find(fullQuery)
     allTestInfo = []
-    
+    testDataframes = []
     for test in documentsFound:
         qrCode = test['qrCode']
         registerNumber = test['count']
         validity = test['control'].upper()
         date = getLocalTime(test['createdAt']).ctime()
         generalInfo = [('País', country.capitalize()),
-                    ('Código QR', qrCode),
-                    ('Registro No.', registerNumber),
-                    ('Validez',test['control'].upper()),
-                    ('Fecha',getLocalTime(test['createdAt']).ctime())]
+                       ('Código QR', qrCode),
+                       ('Registro No.', registerNumber),
+                       ('Validez', test['control'].upper()),
+                       ('Fecha', getLocalTime(test['createdAt']).ctime())]
         proteinInfo = [(marker['name'].upper(), marker['result'].upper())
-            for marker in test['marker']]
+                       for marker in test['marker']]
         diseaseInfo = [(disease['name'].upper(), disease['result'].upper())
-            for disease in test['disease']]
-        
+                       for disease in test['disease']]
         imageTestQuery = {
             'filename': qrCode,
             'count': registerNumber
         }
         imageDetails = rI.readManyCustomQueryDetails(
-            imagesDB.imagetotals, imageTestQuery, 1)
-        imagesExist = 'Sí' if len(imageDetails) > 0 else 'No' 
+            imagesDB.imagestotals, imageTestQuery, 1)
+        imagesExist = 'Sí' if len(imageDetails) > 0 else 'No'
         if len(imageDetails) > 0:
             imageDetails[0]['qr'] = qrCode
-            error = False
-            #error = aP.doFullProcess(
-            #    imageDetails[0], figsize=8, folder=fullPath, show=True)
+            error = aP.doFullProcess(
+                imageDetails[0], figsize=8, folder=fullPath, show=True)
             if error:
                 print(
                     f'Ocurrió un error con el registro {registerNumber} del qr {qrCode}')
-#            originalImageName = 'original.png'
-#            fullPathOriginalImage = ''.join(
-#                [fullPath, qrCode,'-', str(registerNumber), '/', originalImageName])
-#            plt.imsave(fullPathOriginalImage,
-#                       BGR2RGB(imageDetails[0]['image']))
+            originalImageName = 'original.png'
+            fullPathOriginalImage = ''.join(
+                [fullPath, qrCode, '-', str(registerNumber), '/', originalImageName])
+            plt.imsave(fullPathOriginalImage,
+                       BGR2RGB(imageDetails[0]['image']))
         else:
-            print(f'El registro {registerNumber} del qr {qrCode} no tiene imágenes')
-            pathNotFoundImage = ''.join([fullPath, qrCode, '-', str(registerNumber)])
+            print(
+                f'El registro {registerNumber} del qr {qrCode} no tiene imágenes')
+            pathNotFoundImage = ''.join(
+                [fullPath, qrCode, '-', str(registerNumber)])
             makeFolder(pathNotFoundImage)
         imagesInfo = [('Imágenes', imagesExist)]
         testInfo = generalInfo+proteinInfo+diseaseInfo+imagesInfo
@@ -140,8 +137,13 @@ for country in countriesPolygons[0].keys():
         allTestInfo.append(testInfoDict)
     countryDataframe = pd.DataFrame(allTestInfo)
     countryDataframes.append(countryDataframe)
-fullDataframe = pd.concat(countryDataframes, sort=False)
+try:
+    fullDataframe = pd.concat(countryDataframes, sort=False)
+except ValueError:
+    print('No se encontró ningún registro en esta búsqueda')
+    sys.exit(0)
 fullDataframe.set_index('País', inplace=True)
+# Resumen de información
 totalTests += len(fullDataframe)
 totalValidTests += len(
     fullDataframe[fullDataframe['Validez'] == 'VALID'])
@@ -157,11 +159,11 @@ totalTestsNoImages += len(
     fullDataframe[fullDataframe['Imágenes'] == 'No'])
 if startRow == 0:
     fullDataframe.to_excel(writer, sheet_name='Sheet1',
-                              startrow=startRow)
+                           startrow=startRow)
 else:
     fullDataframe.to_excel(writer, sheet_name='Sheet1',
-                              startrow=startRow, header=False)
-startRow += len(list(documentsFound)) + 2
+                           startrow=startRow, header=False)
+startRow += documentsCount + 2
 
 # %%
 reportHeaders = [
