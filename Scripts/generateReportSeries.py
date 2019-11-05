@@ -167,13 +167,13 @@ for key in seriesDict.keys():
 # %% Agregar tabla de resumen
 reportHeaders = [
     'Días del reporte',
-    'Total Tests',
-    'Total Valid Tests',
-    'Total Invalid Tests',
-    'Total Positives',
-    'Total Negatives',
-    'Total Tests With Images',
-    'Total Tests Without Images'
+    'Tests Totales',
+    'Tests Válidos Totales',
+    'Tests Inválidos Totales',
+    'Total Positivos',
+    'Total Negativos',
+    'Tests Con Imagen Totales',
+    'Tests Sin Imagen Totales'
 ]
 reportData = [
     finishDay-startDay,
@@ -188,12 +188,14 @@ reportData = [
 reportDataframe = pd.DataFrame(
     reportData, index=reportHeaders, columns=['Cantidad'])
 reportDataframe.to_excel(writer, sheet_name='Sheet1',
-                         startcol=len(headers) + 1)
+                         startrow=len(seriesDataframe) + 3,
+                         startcol=5)
 worksheet = writer.sheets['Sheet1']
 worksheet.set_column('A:A', 10, None)
-worksheet.set_column('B:B', 25, None)
-worksheet.set_column('D:D', 15, None)
+worksheet.set_column('B:B', 20, None)
+worksheet.set_column('C:C', 20, None)
+worksheet.set_column('D:D', 17, None)
 worksheet.set_column('E:E', 25, None)
-worksheet.set_column('F:K', 17, None)
-worksheet.set_column('M:M', 25, None)
+worksheet.set_column('F:N', 25, None)
+worksheet.set_column('Q:Q', 25, None)
 writer.save()

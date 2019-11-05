@@ -1,5 +1,6 @@
 import os
 import re
+from collections import OrderedDict
 
 import datetime
 from dateutil import tz
@@ -36,10 +37,11 @@ registersDB = qrQuery.cloudMongoConnection(registersURI)
 imagesURI = 'mongodb://imagesUser:cK90iAgQD005@idenmon.zapto.org:888/unimaHealthImages?authMechanism=SCRAM-SHA-1&authSource=unimaHealthImages'
 imagesDB = qrQuery.localMongoConnection(imagesURI)
 # %%
-days = 10
 todaysDate = datetime.datetime.now()
-daysBefore = datetime.timedelta(days=days)
-targetDate = todaysDate-daysBefore
+startDay = 0
+finishDay = 2
+startDate = todaysDate - datetime.timedelta(days=startDay)
+finishDate = startDate - datetime.timedelta(days=finishDay)
 # %%
 with open('./json/polygons.json', 'r') as file:
     polygonsJson = json.load(file)['polygons']
@@ -53,7 +55,7 @@ todaysReportFolder = f'Reporte de {dateString}/'
 fullPath = '/'.join([allReportsFolder, todaysReportFolder])
 makeFolder(fullPath)
 # Inicialización archivo excel
-excelName = f'Reporte-{dateString}-{days}-dias.xlsx'
+excelName = f'Reporte-{dateString}-{finishDay-startDay}-dias.xlsx'
 fullExcelPath = ''.join([fullPath, excelName])
 writer = pd.ExcelWriter(fullExcelPath, engine='xlsxwriter')
 startRow = 0
@@ -66,10 +68,8 @@ totalNegatives = 0
 totalTestsWithImages = 0
 totalTestsNoImages = 0
 # Queries
-listOfDoneRegisters = [file for file in os.listdir(fullPath) if '.' not in file]
-notInList = {'$nin': listOfDoneRegisters}
-dateQuery = {'$lt': todaysDate, '$gte': targetDate}
-headers = []
+dateQuery = {'$lt': startDate, '$gte': finishDate}
+countryDataframes = []
 for country in countriesPolygons[0].keys():
     polygon = countriesPolygons[0][country]
     locationQuery = {'$geoWithin':
@@ -81,8 +81,7 @@ for country in countriesPolygons[0].keys():
     documentsCount = registersDB.registerstotals.count_documents({
         '$and': [
             {'createdAt': dateQuery},
-            {'geo_loc': locationQuery},
-            {'qrCode': notInList}
+            {'geo_loc': locationQuery}
         ]
     })
     if documentsCount == 0:
@@ -91,31 +90,30 @@ for country in countriesPolygons[0].keys():
     documentsFound = registersDB.registerstotals.find({
         '$and': [
             {'createdAt': dateQuery},
-            {'geo_loc': locationQuery},
-            {'qrCode': notInList}
+            {'geo_loc': locationQuery}
         ]
     })
     allTestInfo = []
-    testDataframes = []
-    headers = ['País', 'Código QR', 'Count', 'Valid', 'Date']
+    
     for test in documentsFound:
         qrCode = test['qrCode']
         registerNumber = test['count']
         validity = test['control'].upper()
         date = getLocalTime(test['createdAt']).ctime()
-        testInfo = [country.capitalize(), qrCode, registerNumber,
-                    validity, date]
+        generalInfo = [('País', country.capitalize()),
+                    ('Código QR', qrCode),
+                    ('Registro No.', registerNumber),
+                    ('Validez',test['control'].upper()),
+                    ('Fecha',getLocalTime(test['createdAt']).ctime())]
+        proteinInfo = [(marker['name'].upper(), marker['result'].upper())
+            for marker in test['marker']]
+        diseaseInfo = [(disease['name'].upper(), disease['result'].upper())
+            for disease in test['disease']]
         
-        [testInfo.append(marker['result'].upper())
-            for marker in test['marker']]
-        [headers.append(marker['name'].upper())
-            for marker in test['marker']]
         imageTestQuery = {
             'filename': qrCode,
             'count': registerNumber
         }
-        if 'HIV' in headers:
-            testInfo.insert(-2, None)
         imageDetails = rI.readManyCustomQueryDetails(
             imagesDB.imagetotals, imageTestQuery, 1)
         imagesExist = 'Sí' if len(imageDetails) > 0 else 'No' 
@@ -136,47 +134,48 @@ for country in countriesPolygons[0].keys():
             print(f'El registro {registerNumber} del qr {qrCode} no tiene imágenes')
             pathNotFoundImage = ''.join([fullPath, qrCode, '-', str(registerNumber)])
             makeFolder(pathNotFoundImage)
-        testInfo.append(imagesExist)
-        headers.append('Imágenes')
-        allTestInfo.append(testInfo)
-    testDataframe = pd.DataFrame(allTestInfo, columns=sorted(set(headers), key=headers.index))
-    testDataframe.set_index('País', inplace=True)
-    testDataframes.append(testDataframe)
-    countryDataframe = pd.concat(testDataframes)
-    totalTests += len(countryDataframe)
-    totalValidTests += len(
-        countryDataframe[countryDataframe['Valid'] == 'VALID'])
-    totalInvalidTests += len(
-        countryDataframe[countryDataframe['Valid'] == 'INVALID'])
-    totalPositives += len(
-        countryDataframe[countryDataframe['TB'] == 'POSITIVE'])
-    totalNegatives += len(
-        countryDataframe[countryDataframe['TB'] == 'NEGATIVE'])
-    totalTestsWithImages += len(
-        countryDataframe[countryDataframe['Imágenes'] == 'Sí'])
-    totalTestsNoImages += len(
-        countryDataframe[countryDataframe['Imágenes'] == 'No'])
-    if startRow == 0:
-        countryDataframe.to_excel(writer, sheet_name='Sheet1',
-                                  startrow=startRow)
-    else:
-        countryDataframe.to_excel(writer, sheet_name='Sheet1',
-                                  startrow=startRow, header=False)
-    startRow += len(list(documentsFound)) + 2
+        imagesInfo = [('Imágenes', imagesExist)]
+        testInfo = generalInfo+proteinInfo+diseaseInfo+imagesInfo
+        testInfoDict = OrderedDict(testInfo)
+        allTestInfo.append(testInfoDict)
+    countryDataframe = pd.DataFrame(allTestInfo)
+    countryDataframes.append(countryDataframe)
+fullDataframe = pd.concat(countryDataframes, sort=False)
+fullDataframe.set_index('País', inplace=True)
+totalTests += len(fullDataframe)
+totalValidTests += len(
+    fullDataframe[fullDataframe['Validez'] == 'VALID'])
+totalInvalidTests += len(
+    fullDataframe[fullDataframe['Validez'] == 'INVALID'])
+totalPositives += len(
+    fullDataframe[fullDataframe['TB'] == 'POSITIVE'])
+totalNegatives += len(
+    fullDataframe[fullDataframe['TB'] == 'NEGATIVE'])
+totalTestsWithImages += len(
+    fullDataframe[fullDataframe['Imágenes'] == 'Sí'])
+totalTestsNoImages += len(
+    fullDataframe[fullDataframe['Imágenes'] == 'No'])
+if startRow == 0:
+    fullDataframe.to_excel(writer, sheet_name='Sheet1',
+                              startrow=startRow)
+else:
+    fullDataframe.to_excel(writer, sheet_name='Sheet1',
+                              startrow=startRow, header=False)
+startRow += len(list(documentsFound)) + 2
 
 # %%
 reportHeaders = [
     'Días del reporte',
-    'Total Tests',
-    'Total Valid Tests',
-    'Total Invalid Tests',
-    'Total Positives',
-    'Total Negatives',
-    'Total Tests With Images',
-    'Total Tests Without Images'
+    'Tests Totales',
+    'Tests Válidos Totales',
+    'Tests Inválidos Totales',
+    'Total Positivos',
+    'Total Negativos',
+    'Tests Con Imagen Totales',
+    'Tests Sin Imagen Totales'
 ]
 reportData = [
-    days,
+    finishDay-startDay,
     totalTests,
     totalValidTests,
     totalInvalidTests,
@@ -188,12 +187,14 @@ reportData = [
 reportDataframe = pd.DataFrame(
     reportData, index=reportHeaders, columns=['Cantidad'])
 reportDataframe.to_excel(writer, sheet_name='Sheet1',
-                         startcol=len(headers) + 1)
+                         startrow=len(fullDataframe) + 3,
+                         startcol=5)
 worksheet = writer.sheets['Sheet1']
 worksheet.set_column('A:A', 10, None)
-worksheet.set_column('B:B', 25, None)
-worksheet.set_column('D:D', 15, None)
+worksheet.set_column('B:B', 20, None)
+worksheet.set_column('C:C', 20, None)
+worksheet.set_column('D:D', 17, None)
 worksheet.set_column('E:E', 25, None)
-worksheet.set_column('F:K', 17, None)
-worksheet.set_column('M:M', 25, None)
+worksheet.set_column('F:N', 25, None)
+worksheet.set_column('Q:Q', 25, None)
 writer.save()
