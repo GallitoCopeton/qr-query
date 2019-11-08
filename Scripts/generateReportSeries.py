@@ -1,4 +1,3 @@
-
 import datetime
 import json
 import os
@@ -6,28 +5,18 @@ import re
 import sys
 from collections import OrderedDict
 
-import numpy as np
+import matplotlib
 import pandas as pd
-from dateutil import tz
+import pymongo
 from matplotlib import pyplot as plt
 
-sys.path.insert(0, './Helper Scripts')
-sys.path.insert(0, './Golden Master (AS IS)')
-from preProcessing import BGR2RGB
-import readImage as rI
-import qrQuery
-import appProcessFunction as aP
+from ImageFunctions.ImageProcessing.colorTransformations import BGR2RGB
+from ImageFunctions.ReadImages import readImage as rI
+from ImageFunctions.ShowProcess import showProcesses as sP
+from QueryUtilities import qrQuery
 
-def getLocalTime(date):
-    fromZone = tz.tzutc()
-    date = date.replace(tzinfo=fromZone)
-    localTz = tz.tzlocal()
-    return date.astimezone(localTz)
-
-
-def makeFolder(folderName):
-    if not os.path.isdir(folderName):
-        os.mkdir(folderName)
+scriptPath = os.path.dirname(os.path.abspath(__file__))
+os.chdir(scriptPath)
 
 
 # %%
@@ -35,11 +24,11 @@ URI2 = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.
 DB2 = qrQuery.cloudMongoConnection(URI2)
 
 imagesURI = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
-imagesDB = qrQuery.cloudMongoConnection(imagesURI)
+imagesDB = pymongo.MongoClient(URI2)['datamap']
 # %%
 todaysDate = datetime.datetime.now()
-startDay = 10
-finishDay = 12
+startDay = 0
+finishDay = 1
 startDate = todaysDate - datetime.timedelta(days=startDay)
 finishDate = startDate - datetime.timedelta(days=finishDay-startDay)
 
@@ -52,11 +41,11 @@ seriesDict = dict(zip(seriesNames, prefixCodes))
 # %%
 # Carpetas
 allReportsFolder = './reports'
-makeFolder(allReportsFolder)
+qrQuery.makeFolder(allReportsFolder)
 dateString = re.sub(r':', '_', todaysDate.ctime())[4:]
 todaysReportFolder = f'Reporte de {dateString}/'
 fullPath = '/'.join([allReportsFolder, todaysReportFolder])
-makeFolder(fullPath)
+qrQuery.makeFolder(fullPath)
 # Inicialización archivo excel
 excelName = f'Reporte-{dateString}-{finishDay-startDay}-dias.xlsx'
 fullExcelPath = ''.join([fullPath, excelName])
@@ -96,12 +85,12 @@ for key in seriesDict.keys():
         qrCode = test['qrCode']
         registerNumber = test['count']
         validity = test['control'].upper()
-        date = getLocalTime(test['createdAt']).ctime()
+        date = qrQuery.getLocalTime(test['createdAt']).ctime()
         generalInfo = [('Envío', key),
                        ('Código QR', qrCode),
                        ('Registro No.', registerNumber),
                        ('Validez', test['control'].upper()),
-                       ('Fecha', getLocalTime(test['createdAt']).ctime())]
+                       ('Fecha', date)]
         proteinInfo = [(marker['name'].upper(), marker['result'].upper())
                        for marker in test['marker']]
         diseaseInfo = [(disease['name'].upper(), disease['result'].upper())
@@ -110,27 +99,34 @@ for key in seriesDict.keys():
             'filename': qrCode,
             'count': registerNumber
         }
-        imageDetails = rI.readManyCustomQueryDetails(
-            imagesDB.imagestotals, imageTestQuery, 1)
+        imageDetails = rI.customQuery(
+            imagesDB.imagestotals, imageTestQuery)
         imagesExist = 'Sí' if len(imageDetails) > 0 else 'No'
         if len(imageDetails) > 0:
-            imageDetails[0]['qr'] = qrCode
-            error = aP.doFullProcess(
-                imageDetails[0], figsize=6, folder=fullPath, show=True)
-            if error:
+            fig = sP.showClusterProcess(
+                imageDetails['file'], 12, 4, (7, 8), show=True, returnFig=True)
+            if fig is False:
                 print(
                     f'Ocurrió un error con el registro {registerNumber} del qr {qrCode}')
+            elif type(fig) is matplotlib.figure.Figure:
+                figName = 'process.png'
+                fullPathFig = ''.join(
+                    [fullPath, qrCode, '-', str(registerNumber)])
+                qrQuery.makeFolder(fullPathFig)
+                fig.savefig(''.join([fullPathFig, '/', figName]))
             originalImageName = 'original.png'
             fullPathOriginalImage = ''.join(
-                [fullPath, qrCode, '-', str(registerNumber), '/', originalImageName])
-            plt.imsave(fullPathOriginalImage,
-                       BGR2RGB(imageDetails[0]['image']))
+                [fullPath, qrCode, '-', str(registerNumber)])
+            qrQuery.makeFolder(fullPathOriginalImage)
+
+            plt.imsave(''.join([fullPathOriginalImage, '/', originalImageName]),
+                       BGR2RGB(imageDetails['file']))
         else:
             print(
                 f'El registro {registerNumber} del qr {qrCode} no tiene imágenes')
             pathNotFoundImage = ''.join(
                 [fullPath, qrCode, '-', str(registerNumber)])
-            makeFolder(pathNotFoundImage)
+            qrQuery.makeFolder(pathNotFoundImage)
         imagesInfo = [('Imágenes', imagesExist)]
         testInfo = generalInfo+proteinInfo+diseaseInfo+imagesInfo
         testInfoDict = OrderedDict(testInfo)
