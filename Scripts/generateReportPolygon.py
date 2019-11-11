@@ -23,17 +23,20 @@ os.chdir(scriptPath)
 
 
 # %%
-registersURI = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
-registersDB = qrQuery.cloudMongoConnection(registersURI)
+URI = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
+dbName = 'datamap'
 
-imagesURI = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
-imagesDB = pymongo.MongoClient(imagesURI)['datamap']
+collectionNameImages = 'imagestotals'
+collectionNameData = 'registerstotals'
+collectionImages = qrQuery.getCollection(URI, dbName, collectionNameImages)
+collectionData = qrQuery.getCollection(URI, dbName, collectionNameData)
 # %%
 todaysDate = datetime.datetime.now()
-startDay = 0
-finishDay = 1
+startDay = 10
+finishDay = 13
 startDate = todaysDate - datetime.timedelta(days=startDay)
 finishDate = startDate - datetime.timedelta(days=finishDay-startDay)
+
 # %%
 with open('./json/polygons.json', 'r') as file:
     polygonsJson = json.load(file)['polygons']
@@ -75,12 +78,12 @@ for country in countriesPolygons[0].keys():
             {'geo_loc': locationQuery}
         ]
     }
-    documentsCount = registersDB.registerstotals.count_documents(fullQuery)
+    documentsCount = qrQuery.getDocumentCount(collectionData, fullQuery)
     if documentsCount == 0:
         print(
             f'No existen registros en este periodo en {country.capitalize()}')
         continue
-    documentsFound = registersDB.registerstotals.find(fullQuery)
+    documentsFound = collectionData.find(fullQuery)
     allTestInfo = []
     testDataframes = []
     for test in documentsFound:
@@ -98,16 +101,16 @@ for country in countriesPolygons[0].keys():
         diseaseInfo = [(disease['name'].upper(), disease['result'].upper())
                        for disease in test['disease']]
         imageTestQuery = {
-            'filename': qrCode,
+            'fileName': qrCode,
             'count': registerNumber
         }
-        imageDetails = rI.customQueryDetails(
-            imagesDB.imagestotals, imageTestQuery, 1)
+        imageDetails = rI.customQuery(
+            collectionImages, imageTestQuery)
         imagesExist = 'Sí' if len(imageDetails) > 0 else 'No'
         if len(imageDetails) > 0:
             imageDetails[0]['qr'] = qrCode
             fig = sP.showClusterProcess(
-                imageDetails[0]['image'], 12, 4, (7, 8), show=True, returnFig=True)
+                imageDetails[0]['file'], 3, 5, (7, 8), show=True, returnFig=True)
             if fig is False:
                 print(
                     f'Ocurrió un error con el registro {registerNumber} del qr {qrCode}')
@@ -115,15 +118,15 @@ for country in countriesPolygons[0].keys():
                 figName = 'process.png'
                 fullPathFig = ''.join(
                     [fullPath, qrCode, '-', str(registerNumber)])
-                qrQuery.qrQuery.makeFolder(fullPathFig)
+                qrQuery.makeFolder(fullPathFig)
                 fig.savefig(''.join([fullPathFig, '/', figName]))
             originalImageName = 'original.png'
             fullPathOriginalImage = ''.join(
                 [fullPath, qrCode, '-', str(registerNumber)])
-            qrQuery.qrQuery.makeFolder(fullPathOriginalImage)
+            qrQuery.makeFolder(fullPathOriginalImage)
 
             plt.imsave(''.join([fullPathOriginalImage, '/', originalImageName]),
-                       BGR2RGB(imageDetails[0]['image']))
+                       BGR2RGB(imageDetails[0]['file']))
         else:
             print(
                 f'El registro {registerNumber} del qr {qrCode} no tiene imágenes')
