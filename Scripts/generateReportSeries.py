@@ -10,10 +10,10 @@ import pandas as pd
 import pymongo
 from matplotlib import pyplot as plt
 
-from ImageFunctions.ImageProcessing.colorTransformations import BGR2RGB
-from ImageFunctions.ReadImages import readImage as rI
-from ImageFunctions.ShowProcess import showProcesses as sP
-from QueryUtilities import qrQuery
+import qrQuery
+from ImageProcessing.colorTransformations import BGR2RGB
+from ReadImages import readImage as rI
+from ShowProcess import showProcesses as sP
 
 scriptPath = os.path.dirname(os.path.abspath(__file__))
 os.chdir(scriptPath)
