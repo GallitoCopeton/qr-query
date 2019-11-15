@@ -20,11 +20,14 @@ os.chdir(scriptPath)
 
 
 # %%
-URI2 = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
-DB2 = qrQuery.cloudMongoConnection(URI2)
+# %%
+URI = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
+dbName = 'datamap'
 
-imagesURI = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
-imagesDB = pymongo.MongoClient(URI2)['datamap']
+collectionNameImages = 'imagestotals'
+collectionNameData = 'registerstotals'
+collectionImages = qrQuery.getCollection(URI, dbName, collectionNameImages)
+collectionData = qrQuery.getCollection(URI, dbName, collectionNameData)
 # %%
 todaysDate = datetime.datetime.now()
 startDay = 0
@@ -73,12 +76,12 @@ for key in seriesDict.keys():
         dateQuery,
         regExQuery
     ]}
-    seriesDocumentsCount = DB2.registerstotals.count_documents(fullQuery)
+    seriesDocumentsCount = qrQuery.getDocumentCount(collectionData, fullQuery)
     if seriesDocumentsCount == 0:
         print(
             f'No existen registros en este periodo en la serie {key} con prefijo {prefix}')
         continue
-    seriesDocuments = DB2.registerstotals.find(fullQuery)
+    seriesDocuments = collectionData.find(fullQuery)
     allTestInfo = []
     testDataframes = []
     for test in seriesDocuments:
@@ -96,15 +99,15 @@ for key in seriesDict.keys():
         diseaseInfo = [(disease['name'].upper(), disease['result'].upper())
                        for disease in test['disease']]
         imageTestQuery = {
-            'filename': qrCode,
+            'fileName': qrCode,
             'count': registerNumber
         }
         imageDetails = rI.customQuery(
-            imagesDB.imagestotals, imageTestQuery)
+            collectionImages, imageTestQuery)
         imagesExist = 'Sí' if len(imageDetails) > 0 else 'No'
         if len(imageDetails) > 0:
             fig = sP.showClusterProcess(
-                imageDetails['file'], 12, 4, (7, 8), show=True, returnFig=True)
+                imageDetails[0]['file'], 3, 2, (7, 8), show=True, returnFig=True)
             if fig is False:
                 print(
                     f'Ocurrió un error con el registro {registerNumber} del qr {qrCode}')
@@ -120,7 +123,7 @@ for key in seriesDict.keys():
             qrQuery.makeFolder(fullPathOriginalImage)
 
             plt.imsave(''.join([fullPathOriginalImage, '/', originalImageName]),
-                       BGR2RGB(imageDetails['file']))
+                       BGR2RGB(imageDetails[0]['file']))
         else:
             print(
                 f'El registro {registerNumber} del qr {qrCode} no tiene imágenes')

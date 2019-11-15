@@ -32,8 +32,8 @@ collectionImages = qrQuery.getCollection(URI, dbName, collectionNameImages)
 collectionData = qrQuery.getCollection(URI, dbName, collectionNameData)
 # %%
 todaysDate = datetime.datetime.now()
-startDay = 10
-finishDay = 13
+startDay = 0
+finishDay = 2
 startDate = todaysDate - datetime.timedelta(days=startDay)
 finishDate = startDate - datetime.timedelta(days=finishDay-startDay)
 
