@@ -20,8 +20,6 @@ from ShowProcess import showProcesses as sP
 
 scriptPath = os.path.dirname(os.path.abspath(__file__))
 os.chdir(scriptPath)
-
-
 # %%
 URI = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
 dbName = 'datamap'
@@ -32,11 +30,10 @@ collectionImages = qrQuery.getCollection(URI, dbName, collectionNameImages)
 collectionData = qrQuery.getCollection(URI, dbName, collectionNameData)
 # %%
 todaysDate = datetime.datetime.now()
-startDay = 0
-finishDay = 2
+startDay = 19
+finishDay = 23
 startDate = todaysDate - datetime.timedelta(days=startDay)
 finishDate = startDate - datetime.timedelta(days=finishDay-startDay)
-
 # %%
 with open('./json/polygons.json', 'r') as file:
     polygonsJson = json.load(file)['polygons']
@@ -48,7 +45,7 @@ qrQuery.makeFolder(allReportsFolder)
 dateString = re.sub(r':', '_', todaysDate.ctime())[4:]
 todaysReportFolder = f'Reporte de {dateString}/'
 fullPath = '/'.join([allReportsFolder, todaysReportFolder])
-qrQuery.makeFolder(fullPath)
+qrQuery.makeFolders(fullPath)
 # Inicialización archivo excel
 excelName = f'Reporte-{dateString}-{finishDay-startDay}-dias.xlsx'
 fullExcelPath = ''.join([fullPath, excelName])
@@ -64,18 +61,21 @@ totalTestsWithImages = 0
 totalTestsNoImages = 0
 # Queries
 dateQuery = {'$lt': startDate, '$gte': finishDate}
+dateQuery = {'createdAt': {
+    '$lt': startDate, '$gte': finishDate
+}}
 countryDataframes = []
 for country in countriesPolygons[0].keys():
     polygon = countriesPolygons[0][country]
-    locationQuery = {'$geoWithin':
-                     {'$geometry': {
-                         'type': 'Polygon',
-                         'coordinates': polygon
-                     }}}
+    locationQuery = {'geo_loc': {'$geoWithin':
+                                 {'$geometry': {
+                                     'type': 'Polygon',
+                                     'coordinates': polygon
+                                 }}}}
     fullQuery = {
         '$and': [
-            {'createdAt': dateQuery},
-            {'geo_loc': locationQuery}
+            dateQuery,
+            locationQuery
         ]
     }
     documentsCount = qrQuery.getDocumentCount(collectionData, fullQuery)

@@ -17,9 +17,6 @@ from ShowProcess import showProcesses as sP
 
 scriptPath = os.path.dirname(os.path.abspath(__file__))
 os.chdir(scriptPath)
-
-
-# %%
 # %%
 URI = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
 dbName = 'datamap'
@@ -48,7 +45,7 @@ qrQuery.makeFolder(allReportsFolder)
 dateString = re.sub(r':', '_', todaysDate.ctime())[4:]
 todaysReportFolder = f'Reporte de {dateString}/'
 fullPath = '/'.join([allReportsFolder, todaysReportFolder])
-qrQuery.makeFolder(fullPath)
+qrQuery.makeFolders(fullPath)
 # Inicialización archivo excel
 excelName = f'Reporte-{dateString}-{finishDay-startDay}-dias.xlsx'
 fullExcelPath = ''.join([fullPath, excelName])
