@@ -30,8 +30,8 @@ collectionImages = qrQuery.getCollection(URI, dbName, collectionNameImages)
 collectionData = qrQuery.getCollection(URI, dbName, collectionNameData)
 # %%
 todaysDate = datetime.datetime.now()
-startDay = 19
-finishDay = 23
+startDay = 11
+finishDay = 38
 startDate = todaysDate - datetime.timedelta(days=startDay)
 finishDate = startDate - datetime.timedelta(days=finishDay-startDay)
 # %%
@@ -66,6 +66,7 @@ dateQuery = {'createdAt': {
 }}
 countryDataframes = []
 for country in countriesPolygons[0].keys():
+    print('Buscando en {country}'.format(country=country.capitalize()))
     polygon = countriesPolygons[0][country]
     locationQuery = {'geo_loc': {'$geoWithin':
                                  {'$geometry': {
