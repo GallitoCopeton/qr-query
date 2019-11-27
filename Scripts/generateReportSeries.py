@@ -7,7 +7,7 @@ from collections import OrderedDict
 
 import matplotlib
 import pandas as pd
-import pymongo
+from geopy.geocoders import Nominatim
 from matplotlib import pyplot as plt
 
 import qrQuery
@@ -27,8 +27,8 @@ collectionImages = qrQuery.getCollection(URI, dbName, collectionNameImages)
 collectionData = qrQuery.getCollection(URI, dbName, collectionNameData)
 # %%
 todaysDate = datetime.datetime.now()
-startDay = 0
-finishDay = 1
+startDay = 11
+finishDay = 38
 startDate = todaysDate - datetime.timedelta(days=startDay)
 finishDate = startDate - datetime.timedelta(days=finishDay-startDay)
 
@@ -81,15 +81,25 @@ for key in seriesDict.keys():
     seriesDocuments = collectionData.find(fullQuery)
     allTestInfo = []
     testDataframes = []
+    geolocator = Nominatim(user_agent='Report Series')
     for test in seriesDocuments:
         qrCode = test['qrCode']
         registerNumber = test['count']
         validity = test['control'].upper()
         date = qrQuery.getLocalTime(test['createdAt']).ctime()
+        latitude = str(test['location'][0]['latitude'])
+        longitude = str(test['location'][0]['longitude'])
+        exact_location = ''.join([latitude, ',', longitude])
+        try:
+            location = geolocator.reverse(exact_location)
+        except Exception as e:
+            location = exact_location
+            print(e)
         generalInfo = [('Envío', key),
                        ('Código QR', qrCode),
                        ('Registro No.', registerNumber),
                        ('Validez', test['control'].upper()),
+                       ('Lugar', location),
                        ('Fecha', date)]
         proteinInfo = [(marker['name'].upper(), marker['result'].upper())
                        for marker in test['marker']]
@@ -104,7 +114,7 @@ for key in seriesDict.keys():
         imagesExist = 'Sí' if len(imageDetails) > 0 else 'No'
         if len(imageDetails) > 0:
             fig = sP.showClusterProcess(
-                imageDetails[0]['file'], 3, 2, (7, 8), show=True, returnFig=True)
+                imageDetails[0]['file'], 3, 6, (7, 8), show=True, returnFig=True)
             if fig is False:
                 print(
                     f'Ocurrió un error con el registro {registerNumber} del qr {qrCode}')
