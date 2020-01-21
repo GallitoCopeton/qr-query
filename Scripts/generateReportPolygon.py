@@ -17,9 +17,6 @@ import qrQuery
 from ImageProcessing.colorTransformations import BGR2RGB
 from ReadImages import readImage as rI
 from ShowProcess import showProcesses as sP
-
-scriptPath = os.path.dirname(os.path.abspath(__file__))
-os.chdir(scriptPath)
 # %%
 URI = 'mongodb+srv://findOnlyReadUser:RojutuNHqy@clusterfinddemo-lwvvo.mongodb.net/datamap?retryWrites=true'
 dbName = 'datamap'
@@ -30,8 +27,8 @@ collectionImages = qrQuery.getCollection(URI, dbName, collectionNameImages)
 collectionData = qrQuery.getCollection(URI, dbName, collectionNameData)
 # %%
 todaysDate = datetime.datetime.now()
-startDay = 11
-finishDay = 38
+startDay = 0
+finishDay = 2
 startDate = todaysDate - datetime.timedelta(days=startDay)
 finishDate = startDate - datetime.timedelta(days=finishDay-startDay)
 # %%
@@ -60,7 +57,6 @@ totalNegatives = 0
 totalTestsWithImages = 0
 totalTestsNoImages = 0
 # Queries
-dateQuery = {'$lt': startDate, '$gte': finishDate}
 dateQuery = {'createdAt': {
     '$lt': startDate, '$gte': finishDate
 }}
@@ -68,11 +64,16 @@ countryDataframes = []
 for country in countriesPolygons[0].keys():
     print('Buscando en {country}'.format(country=country.capitalize()))
     polygon = countriesPolygons[0][country]
-    locationQuery = {'geo_loc': {'$geoWithin':
-                                 {'$geometry': {
-                                     'type': 'Polygon',
-                                     'coordinates': polygon
-                                 }}}}
+    locationQuery = {
+        'geo_loc': {
+            '$geoWithin': {
+                '$geometry': {
+                    'type': 'Polygon',
+                    'coordinates': polygon
+                }
+            }
+        }
+    }
     fullQuery = {
         '$and': [
             dateQuery,
@@ -111,7 +112,7 @@ for country in countriesPolygons[0].keys():
         if len(imageDetails) > 0:
             imageDetails[0]['qr'] = qrCode
             fig = sP.showClusterProcess(
-                imageDetails[0]['file'], 3, 5, (7, 8), show=True, returnFig=True)
+                imageDetails[0]['file'], 3, 6, (7, 8), show=False, returnFig=True)
             if fig is False:
                 print(
                     f'Ocurrió un error con el registro {registerNumber} del qr {qrCode}')
